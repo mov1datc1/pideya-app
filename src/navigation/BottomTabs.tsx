@@ -2,6 +2,8 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/main/HomeScreen';
+import { OrdersScreen } from '../screens/main/OrdersScreen';
+import { TrackingScreen } from '../screens/main/TrackingScreen';
 import { ProfileScreen } from '../screens/main/ProfileScreen';
 import { colors, fonts } from '../theme';
 import { MainTabParamList } from '../types/navigation';
@@ -21,9 +23,6 @@ const tabLabels: Record<keyof MainTabParamList, string> = {
   TrackingTab: 'Rastreo',
   ProfileTab: 'Perfil',
 };
-
-// Placeholder screens for tabs not yet built
-const PlaceholderScreen = () => null;
 
 export const BottomTabs: React.FC = () => {
   return (
@@ -50,8 +49,8 @@ export const BottomTabs: React.FC = () => {
       })}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} />
-      <Tab.Screen name="OrdersTab" component={PlaceholderScreen} />
-      <Tab.Screen name="TrackingTab" component={PlaceholderScreen} />
+      <Tab.Screen name="OrdersTab" component={OrdersScreen} />
+      <Tab.Screen name="TrackingTab" component={TrackingScreen} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} />
     </Tab.Navigator>
   );
