@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext, createContext, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   Cart,
@@ -23,7 +23,32 @@ const emptyCart: Cart = {
   pays_with: null,
 };
 
-export const useCart = () => {
+interface CartContextValue {
+  cart: Cart;
+  loaded: boolean;
+  addItem: (
+    restaurantId: string,
+    restaurantName: string,
+    menuItem: MenuItem,
+    quantity: number,
+    notes: string,
+    selectedOptions: MenuItemOption[],
+  ) => void;
+  removeItem: (menuItemId: string) => void;
+  updateQuantity: (menuItemId: string, quantity: number) => void;
+  setPaymentMethod: (method: PaymentMethod) => void;
+  setDeliveryAddress: (text: string, lat: number, lng: number, note: string) => void;
+  setTip: (amount: number) => void;
+  setPaysWith: (amount: number | null) => void;
+  clearCart: () => void;
+  itemsTotal: number;
+  itemCount: number;
+  isEmpty: boolean;
+}
+
+const CartContext = createContext<CartContextValue | null>(null);
+
+export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<Cart>(emptyCart);
   const [loaded, setLoaded] = useState(false);
 
@@ -150,19 +175,32 @@ export const useCart = () => {
 
   const itemCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
 
-  return {
-    cart,
-    loaded,
-    addItem,
-    removeItem,
-    updateQuantity,
-    setPaymentMethod,
-    setDeliveryAddress,
-    setTip,
-    setPaysWith,
-    clearCart,
-    itemsTotal,
-    itemCount,
-    isEmpty: cart.items.length === 0,
-  };
+  const value = useMemo(
+    () => ({
+      cart,
+      loaded,
+      addItem,
+      removeItem,
+      updateQuantity,
+      setPaymentMethod,
+      setDeliveryAddress,
+      setTip,
+      setPaysWith,
+      clearCart,
+      itemsTotal,
+      itemCount,
+      isEmpty: cart.items.length === 0,
+    }),
+    [cart, loaded, addItem, removeItem, updateQuantity, setPaymentMethod, setDeliveryAddress, setTip, setPaysWith, clearCart, itemsTotal, itemCount],
+  );
+
+  return React.createElement(CartContext.Provider, { value }, children);
+};
+
+export const useCart = (): CartContextValue => {
+  const ctx = useContext(CartContext);
+  if (!ctx) {
+    throw new Error('useCart must be used within CartProvider');
+  }
+  return ctx;
 };

@@ -17,6 +17,7 @@ import {
   Outfit_700Bold,
 } from '@expo-google-fonts/outfit';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { CartProvider } from './src/hooks/useCart';
 import { colors } from './src/theme';
 
 export default function App() {
@@ -42,8 +43,10 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <AppNavigator />
+      <CartProvider>
+        <StatusBar style="auto" />
+        <AppNavigator />
+      </CartProvider>
     </SafeAreaProvider>
   );
 }

@@ -19,7 +19,7 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
-  RestaurantMenu: { restaurantId: string };
+  RestaurantDetail: { restaurantId: string; restaurantName: string; coverUrl?: string };
   Cart: undefined;
   Checkout: undefined;
   OrderStatus: { orderId: string };

@@ -29,7 +29,9 @@ export const Chip: React.FC<ChipProps> = ({
 const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
     borderRadius: radius.pill,
     backgroundColor: colors.cloud,
   },

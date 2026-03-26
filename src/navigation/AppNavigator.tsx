@@ -3,6 +3,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthStack } from './AuthStack';
 import { BottomTabs } from './BottomTabs';
+import { RestaurantDetailScreen } from '../screens/main/RestaurantDetailScreen';
+import { CartScreen } from '../screens/main/CartScreen';
+import { CheckoutScreen } from '../screens/main/CheckoutScreen';
+import { OrderStatusScreen } from '../screens/main/OrderStatusScreen';
 import { useAuth } from '../hooks/useAuth';
 import { RootStackParamList } from '../types/navigation';
 
@@ -26,7 +30,13 @@ export const AppNavigator: React.FC = () => {
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          <RootStack.Screen name="Main" component={BottomTabs} />
+          <>
+            <RootStack.Screen name="Main" component={BottomTabs} />
+            <RootStack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
+            <RootStack.Screen name="Cart" component={CartScreen} />
+            <RootStack.Screen name="Checkout" component={CheckoutScreen} />
+            <RootStack.Screen name="OrderStatus" component={OrderStatusScreen} />
+          </>
         ) : (
           <RootStack.Screen name="Auth" component={AuthStack} />
         )}

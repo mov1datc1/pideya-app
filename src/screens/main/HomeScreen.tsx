@@ -10,6 +10,8 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { LogoLockup } from '../../components/branding/LogoLockup';
 import { Card } from '../../components/ui/Card';
@@ -17,6 +19,7 @@ import { Chip } from '../../components/ui/Chip';
 import { useRestaurants } from '../../hooks/useRestaurants';
 import { useAuth } from '../../hooks/useAuth';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
+import type { RootStackParamList } from '../../types/navigation';
 import type { Restaurant, FoodType } from '../../types/database';
 
 const FOOD_TYPES: { label: string; value: FoodType | 'ALL' }[] = [
@@ -32,6 +35,7 @@ const FOOD_TYPES: { label: string; value: FoodType | 'ALL' }[] = [
 
 export const HomeScreen: React.FC = () => {
   const { profile } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { restaurants, loading, error, search } = useRestaurants();
   const [selectedType, setSelectedType] = useState<FoodType | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,34 +55,45 @@ export const HomeScreen: React.FC = () => {
     : 'Buen dia';
 
   const renderRestaurant = ({ item }: { item: Restaurant }) => (
-    <Card style={styles.restaurantCard}>
-      {(item.cover_url || item.photo_url) && (
-        <Image
-          source={{ uri: item.cover_url || item.photo_url || '' }}
-          style={styles.restaurantImage}
-        />
-      )}
-      <View style={styles.restaurantInfo}>
-        <Text style={styles.restaurantName}>{item.name}</Text>
-        {item.description ? (
-          <Text style={styles.restaurantDesc} numberOfLines={1}>
-            {item.description}
-          </Text>
-        ) : null}
-        <View style={styles.restaurantMeta}>
-          <Ionicons name="time-outline" size={14} color={colors['ink-muted']} />
-          <Text style={styles.metaText}>{item.open_time} – {item.close_time}</Text>
-          <View style={styles.dot} />
-          <Text style={styles.metaText}>{item.type}</Text>
-          {!item.is_open && (
-            <>
-              <View style={styles.dot} />
-              <Text style={[styles.metaText, { color: colors.error }]}>Cerrado</Text>
-            </>
-          )}
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() =>
+        navigation.navigate('RestaurantDetail', {
+          restaurantId: item.id,
+          restaurantName: item.name,
+          coverUrl: item.cover_url || item.photo_url || undefined,
+        })
+      }
+    >
+      <Card style={styles.restaurantCard}>
+        {(item.cover_url || item.photo_url) && (
+          <Image
+            source={{ uri: item.cover_url || item.photo_url || '' }}
+            style={styles.restaurantImage}
+          />
+        )}
+        <View style={styles.restaurantInfo}>
+          <Text style={styles.restaurantName}>{item.name}</Text>
+          {item.description ? (
+            <Text style={styles.restaurantDesc} numberOfLines={1}>
+              {item.description}
+            </Text>
+          ) : null}
+          <View style={styles.restaurantMeta}>
+            <Ionicons name="time-outline" size={14} color={colors['ink-muted']} />
+            <Text style={styles.metaText}>{item.open_time} – {item.close_time}</Text>
+            <View style={styles.dot} />
+            <Text style={styles.metaText}>{item.type}</Text>
+            {!item.is_open && (
+              <>
+                <View style={styles.dot} />
+                <Text style={[styles.metaText, { color: colors.error }]}>Cerrado</Text>
+              </>
+            )}
+          </View>
         </View>
-      </View>
-    </Card>
+      </Card>
+    </TouchableOpacity>
   );
 
   return (
