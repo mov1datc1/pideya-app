@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -16,9 +17,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { createOrder } from '../../services/orders';
+import * as addressService from '../../services/addresses';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
-import type { PaymentMethod, OrderItemJSON } from '../../types/database';
+import type { PaymentMethod, OrderItemJSON, UserAddress } from '../../types/database';
 
 type NavType = NativeStackNavigationProp<RootStackParamList>;
 
@@ -33,7 +35,7 @@ const TIP_OPTIONS = [0, 10, 20, 30, 50];
 export const CheckoutScreen: React.FC = () => {
   const navigation = useNavigation<NavType>();
   const insets = useSafeAreaInsets();
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
   const {
     cart,
     itemsTotal,
@@ -45,11 +47,77 @@ export const CheckoutScreen: React.FC = () => {
     clearCart,
   } = useCart();
 
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [addressText, setAddressText] = useState(cart.delivery_address_text);
   const [locationNote, setLocationNote] = useState(cart.delivery_location_note);
+  const [addressLabel, setAddressLabel] = useState('');
+  const [showNewAddress, setShowNewAddress] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const deliveryFee = 25; // Default delivery fee
+  // Load saved addresses
+  useEffect(() => {
+    addressService.getAddresses().then((addrs) => {
+      setSavedAddresses(addrs);
+      // Auto-select default or first address
+      const def = addrs.find((a) => a.is_default) || addrs[0];
+      if (def && !addressText) {
+        setSelectedAddressId(def.id);
+        setAddressText(def.address_text);
+        setLocationNote(def.reference || '');
+      } else if (!addrs.length) {
+        setShowNewAddress(true);
+      }
+    });
+  }, []);
+
+  const selectAddress = (addr: UserAddress) => {
+    setSelectedAddressId(addr.id);
+    setAddressText(addr.address_text);
+    setLocationNote(addr.reference || '');
+    setShowNewAddress(false);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!addressText.trim()) return;
+    const newAddr = await addressService.addAddress({
+      user_id: profile?.full_name || 'local',
+      label: addressLabel.trim() || 'Mi direccion',
+      address_text: addressText.trim(),
+      reference: locationNote.trim() || null,
+      latitude: 0,
+      longitude: 0,
+      is_default: savedAddresses.length === 0,
+      is_pin_location: false,
+    });
+    setSavedAddresses((prev) => [...prev, newAddr]);
+    setSelectedAddressId(newAddr.id);
+    setShowSaveModal(false);
+    setAddressLabel('');
+  };
+
+  const handleDeleteAddress = (id: string) => {
+    Alert.alert('Eliminar direccion', 'Estas seguro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          await addressService.deleteAddress(id);
+          setSavedAddresses((prev) => prev.filter((a) => a.id !== id));
+          if (selectedAddressId === id) {
+            setSelectedAddressId(null);
+            setAddressText('');
+            setLocationNote('');
+            setShowNewAddress(true);
+          }
+        },
+      },
+    ]);
+  };
+
+  const deliveryFee = 25;
   const total = itemsTotal + deliveryFee + cart.tip_amount;
 
   const handlePlaceOrder = async () => {
@@ -58,7 +126,6 @@ export const CheckoutScreen: React.FC = () => {
       return;
     }
 
-    // Save address to cart
     setDeliveryAddress(addressText, cart.delivery_lat, cart.delivery_lng, locationNote);
 
     setSubmitting(true);
@@ -121,21 +188,92 @@ export const CheckoutScreen: React.FC = () => {
             <Ionicons name="location-outline" size={20} color={colors.agave} />
             <Text style={styles.sectionTitle}>Direccion de entrega</Text>
           </View>
-          <TextInput
-            style={styles.addressInput}
-            placeholder="Ej: Calle Hidalgo #123, Centro"
-            placeholderTextColor={colors['ink-hint']}
-            value={addressText}
-            onChangeText={setAddressText}
-            multiline
-          />
-          <TextInput
-            style={styles.noteInput}
-            placeholder="Referencia (opcional): entre calles, color de casa..."
-            placeholderTextColor={colors['ink-hint']}
-            value={locationNote}
-            onChangeText={setLocationNote}
-          />
+
+          {/* Saved addresses */}
+          {savedAddresses.length > 0 && (
+            <View style={styles.savedAddresses}>
+              {savedAddresses.map((addr) => (
+                <TouchableOpacity
+                  key={addr.id}
+                  style={[
+                    styles.savedAddr,
+                    selectedAddressId === addr.id && !showNewAddress && styles.savedAddrActive,
+                  ]}
+                  onPress={() => selectAddress(addr)}
+                >
+                  <View style={styles.savedAddrIcon}>
+                    <Ionicons
+                      name={addr.label.toLowerCase().includes('casa') ? 'home-outline' :
+                            addr.label.toLowerCase().includes('trabajo') ? 'briefcase-outline' : 'location-outline'}
+                      size={18}
+                      color={selectedAddressId === addr.id && !showNewAddress ? colors.agave : colors['ink-muted']}
+                    />
+                  </View>
+                  <View style={styles.savedAddrInfo}>
+                    <Text style={[
+                      styles.savedAddrLabel,
+                      selectedAddressId === addr.id && !showNewAddress && styles.savedAddrLabelActive,
+                    ]}>
+                      {addr.label}
+                    </Text>
+                    <Text style={styles.savedAddrText} numberOfLines={1}>{addr.address_text}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleDeleteAddress(addr.id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close-circle-outline" size={18} color={colors['ink-hint']} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* New address toggle */}
+          <TouchableOpacity
+            style={[styles.newAddrBtn, showNewAddress && styles.newAddrBtnActive]}
+            onPress={() => {
+              setShowNewAddress(true);
+              setSelectedAddressId(null);
+              setAddressText('');
+              setLocationNote('');
+            }}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={showNewAddress ? colors.agave : colors['ink-muted']} />
+            <Text style={[styles.newAddrBtnText, showNewAddress && styles.newAddrBtnTextActive]}>
+              Nueva direccion
+            </Text>
+          </TouchableOpacity>
+
+          {/* Address inputs */}
+          {showNewAddress && (
+            <View style={styles.addressInputs}>
+              <TextInput
+                style={styles.addressInput}
+                placeholder="Ej: Calle Hidalgo #123, Centro"
+                placeholderTextColor={colors['ink-hint']}
+                value={addressText}
+                onChangeText={setAddressText}
+                multiline
+              />
+              <TextInput
+                style={styles.noteInput}
+                placeholder="Referencia: entre calles, color de casa..."
+                placeholderTextColor={colors['ink-hint']}
+                value={locationNote}
+                onChangeText={setLocationNote}
+              />
+              {addressText.trim().length > 0 && (
+                <TouchableOpacity
+                  style={styles.saveAddrBtn}
+                  onPress={() => setShowSaveModal(true)}
+                >
+                  <Ionicons name="bookmark-outline" size={16} color={colors.agave} />
+                  <Text style={styles.saveAddrBtnText}>Guardar esta direccion</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Payment method */}
@@ -262,6 +400,35 @@ export const CheckoutScreen: React.FC = () => {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Save address modal */}
+      <Modal visible={showSaveModal} animationType="fade" transparent>
+        <View style={styles.saveModalOverlay}>
+          <View style={styles.saveModalContent}>
+            <Text style={styles.saveModalTitle}>Guardar direccion</Text>
+            <Text style={styles.saveModalSubtitle}>Dale un nombre para encontrarla facil</Text>
+            <TextInput
+              style={styles.saveModalInput}
+              placeholder="Ej: Casa, Trabajo, Mama..."
+              placeholderTextColor={colors['ink-hint']}
+              value={addressLabel}
+              onChangeText={setAddressLabel}
+              autoFocus
+            />
+            <View style={styles.saveModalActions}>
+              <TouchableOpacity
+                style={styles.saveModalCancel}
+                onPress={() => { setShowSaveModal(false); setAddressLabel(''); }}
+              >
+                <Text style={styles.saveModalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveModalSave} onPress={handleSaveAddress}>
+                <Text style={styles.saveModalSaveText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -306,6 +473,67 @@ const styles = StyleSheet.create({
     ...textStyles.h3,
     color: colors.ink,
   },
+  // Saved addresses
+  savedAddresses: {
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  savedAddr: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.cloud,
+    gap: spacing.sm,
+  },
+  savedAddrActive: {
+    borderColor: colors.agave,
+    backgroundColor: colors['agave-light'],
+  },
+  savedAddrIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.snow,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  savedAddrInfo: {
+    flex: 1,
+  },
+  savedAddrLabel: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  savedAddrLabelActive: {
+    color: colors['agave-dark'],
+  },
+  savedAddrText: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: colors['ink-muted'],
+    marginTop: 1,
+  },
+  newAddrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  newAddrBtnActive: {},
+  newAddrBtnText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 14,
+    color: colors['ink-muted'],
+  },
+  newAddrBtnTextActive: {
+    color: colors.agave,
+  },
+  addressInputs: {
+    marginTop: spacing.xs,
+  },
   addressInput: {
     backgroundColor: colors.snow,
     borderRadius: radius.sm,
@@ -324,6 +552,18 @@ const styles = StyleSheet.create({
     color: colors.ink,
     marginTop: spacing.sm,
     height: 44,
+  },
+  saveAddrBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    alignSelf: 'flex-start',
+  },
+  saveAddrBtnText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 13,
+    color: colors.agave,
   },
   paymentOptions: {
     flexDirection: 'row',
@@ -460,6 +700,71 @@ const styles = StyleSheet.create({
   orderBtnPrice: {
     fontFamily: fonts.playfair.bold,
     fontSize: 17,
+    color: colors.white,
+  },
+  // Save address modal
+  saveModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing['2xl'],
+  },
+  saveModalContent: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    width: '100%',
+  },
+  saveModalTitle: {
+    ...textStyles.h3,
+    color: colors.ink,
+  },
+  saveModalSubtitle: {
+    ...textStyles.caption,
+    color: colors['ink-muted'],
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  saveModalInput: {
+    backgroundColor: colors.snow,
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    fontFamily: fonts.outfit.regular,
+    fontSize: 15,
+    color: colors.ink,
+    height: 48,
+  },
+  saveModalActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  saveModalCancel: {
+    flex: 1,
+    height: 44,
+    borderRadius: radius.sm,
+    borderWidth: 1.5,
+    borderColor: colors.cloud,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveModalCancelText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 14,
+    color: colors['ink-secondary'],
+  },
+  saveModalSave: {
+    flex: 1,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: colors.agave,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveModalSaveText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 14,
     color: colors.white,
   },
 });

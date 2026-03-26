@@ -67,7 +67,7 @@ export const CartScreen: React.FC = () => {
         <View style={styles.qtyControls}>
           <TouchableOpacity
             style={styles.qtyBtn}
-            onPress={() => updateQuantity(item.menu_item.id, item.quantity - 1)}
+            onPress={() => updateQuantity(item.menu_item.id, item.quantity - 1, item.menu_item.name)}
           >
             <Ionicons
               name={item.quantity === 1 ? 'trash-outline' : 'remove'}
@@ -78,7 +78,7 @@ export const CartScreen: React.FC = () => {
           <Text style={styles.qtyText}>{item.quantity}</Text>
           <TouchableOpacity
             style={styles.qtyBtn}
-            onPress={() => updateQuantity(item.menu_item.id, item.quantity + 1)}
+            onPress={() => updateQuantity(item.menu_item.id, item.quantity + 1, item.menu_item.name)}
           >
             <Ionicons name="add" size={16} color={colors.ink} />
           </TouchableOpacity>

@@ -34,8 +34,8 @@ interface CartContextValue {
     notes: string,
     selectedOptions: MenuItemOption[],
   ) => void;
-  removeItem: (menuItemId: string) => void;
-  updateQuantity: (menuItemId: string, quantity: number) => void;
+  removeItem: (menuItemId: string, menuItemName?: string) => void;
+  updateQuantity: (menuItemId: string, quantity: number, menuItemName?: string) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setDeliveryAddress: (text: string, lat: number, lng: number, note: string) => void;
   setTip: (amount: number) => void;
@@ -89,7 +89,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         const existingIdx = prev.items.findIndex(
-          (i) => i.menu_item.id === menuItem.id,
+          (i) => i.menu_item.id === menuItem.id && i.menu_item.name === menuItem.name,
         );
 
         const newItems = [...prev.items];
@@ -115,23 +115,29 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     [],
   );
 
-  const removeItem = useCallback((menuItemId: string) => {
+  const removeItem = useCallback((menuItemId: string, menuItemName?: string) => {
     setCart((prev) => ({
       ...prev,
-      items: prev.items.filter((i) => i.menu_item.id !== menuItemId),
+      items: prev.items.filter((i) =>
+        menuItemName
+          ? !(i.menu_item.id === menuItemId && i.menu_item.name === menuItemName)
+          : i.menu_item.id !== menuItemId,
+      ),
     }));
   }, []);
 
   const updateQuantity = useCallback(
-    (menuItemId: string, quantity: number) => {
+    (menuItemId: string, quantity: number, menuItemName?: string) => {
       if (quantity <= 0) {
-        removeItem(menuItemId);
+        removeItem(menuItemId, menuItemName);
         return;
       }
       setCart((prev) => ({
         ...prev,
         items: prev.items.map((i) =>
-          i.menu_item.id === menuItemId ? { ...i, quantity } : i,
+          menuItemName
+            ? (i.menu_item.id === menuItemId && i.menu_item.name === menuItemName ? { ...i, quantity } : i)
+            : (i.menu_item.id === menuItemId ? { ...i, quantity } : i),
         ),
       }));
     },
