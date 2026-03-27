@@ -1,6 +1,30 @@
 import { supabase } from './supabase';
 import type { UserProfile } from '../types/database';
 
+/** Send OTP code to email (works for both new and existing users) */
+export const sendEmailOtp = async (email: string) => {
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: true,
+    },
+  });
+  if (error) throw error;
+  return data;
+};
+
+/** Verify the OTP code sent to email */
+export const verifyEmailOtp = async (email: string, token: string) => {
+  const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: 'email',
+  });
+  if (error) throw error;
+  return data;
+};
+
+/** Legacy: sign up with email + password (fallback) */
 export const signUp = async (
   email: string,
   password: string,
@@ -19,6 +43,7 @@ export const signUp = async (
   return data;
 };
 
+/** Legacy: sign in with email + password (fallback) */
 export const signIn = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -80,4 +105,10 @@ export const onAuthStateChange = (
   callback: (event: string, session: unknown) => void,
 ) => {
   return supabase.auth.onAuthStateChange(callback);
+};
+
+/** Check if user profile is complete (has name and phone) */
+export const isProfileComplete = (userMetadata: Record<string, unknown> | undefined): boolean => {
+  if (!userMetadata) return false;
+  return !!(userMetadata.full_name && userMetadata.phone);
 };

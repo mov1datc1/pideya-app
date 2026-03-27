@@ -5,8 +5,11 @@
 export type AuthStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
+  Terms: undefined;
   Login: undefined;
   Register: undefined;
+  OtpVerify: { email: string };
+  CompleteProfile: undefined;
 };
 
 export type MainTabParamList = {

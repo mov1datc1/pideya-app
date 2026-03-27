@@ -7,15 +7,16 @@ import { RestaurantDetailScreen } from '../screens/main/RestaurantDetailScreen';
 import { CartScreen } from '../screens/main/CartScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderStatusScreen } from '../screens/main/OrderStatusScreen';
+import { CompleteProfileScreen } from '../screens/auth/CompleteProfileScreen';
 import { useAuth } from '../hooks/useAuth';
 import { RootStackParamList } from '../types/navigation';
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator: React.FC = () => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, isProfileComplete, loading } = useAuth();
 
-  // Mientras se carga la sesion, mostrar Auth (que tiene el Splash)
+  // While loading, show Auth (which has the Splash)
   if (loading) {
     return (
       <NavigationContainer>
@@ -30,13 +31,17 @@ export const AppNavigator: React.FC = () => {
     <NavigationContainer>
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          <>
-            <RootStack.Screen name="Main" component={BottomTabs} />
-            <RootStack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
-            <RootStack.Screen name="Cart" component={CartScreen} />
-            <RootStack.Screen name="Checkout" component={CheckoutScreen} />
-            <RootStack.Screen name="OrderStatus" component={OrderStatusScreen} />
-          </>
+          isProfileComplete ? (
+            <>
+              <RootStack.Screen name="Main" component={BottomTabs} />
+              <RootStack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
+              <RootStack.Screen name="Cart" component={CartScreen} />
+              <RootStack.Screen name="Checkout" component={CheckoutScreen} />
+              <RootStack.Screen name="OrderStatus" component={OrderStatusScreen} />
+            </>
+          ) : (
+            <RootStack.Screen name="Auth" component={AuthStack} />
+          )
         ) : (
           <RootStack.Screen name="Auth" component={AuthStack} />
         )}

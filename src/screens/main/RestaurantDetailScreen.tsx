@@ -130,12 +130,12 @@ export const RestaurantDetailScreen: React.FC = () => {
 
     if (cart.restaurant_id && cart.restaurant_id !== restaurantId && cart.items.length > 0) {
       Alert.alert(
-        'Cambiar restaurante?',
-        'Tu carrito tiene productos de otro restaurante. Se vaciara si agregas este producto.',
+        'Nuevo pedido?',
+        `Ya tienes productos de ${cart.restaurant_name}. Cada pedido solo puede ser de un restaurante porque el repartidor es del propio restaurante.\n\nQuieres vaciar tu carrito y empezar con ${restaurantName}?`,
         [
-          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Mantener carrito', style: 'cancel' },
           {
-            text: 'Vaciar y agregar',
+            text: 'Nuevo pedido',
             style: 'destructive',
             onPress: () => {
               addItem(restaurantId, restaurantName, menuItemForCart, quantity, notes, extrasForCart);

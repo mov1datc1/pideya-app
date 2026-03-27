@@ -19,7 +19,6 @@ export const useAuth = () => {
   });
 
   useEffect(() => {
-    // Obtener sesion inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setState((s) => ({
         ...s,
@@ -29,7 +28,6 @@ export const useAuth = () => {
       }));
     });
 
-    // Escuchar cambios de auth
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -44,6 +42,7 @@ export const useAuth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Legacy password auth (kept as fallback)
   const signIn = useCallback(async (email: string, password: string) => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
@@ -56,13 +55,7 @@ export const useAuth = () => {
   }, []);
 
   const signUp = useCallback(
-    async (
-      email: string,
-      password: string,
-      fullName: string,
-      phone: string,
-      city: string,
-    ) => {
+    async (email: string, password: string, fullName: string, phone: string, city: string) => {
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
         await authService.signUp(email, password, fullName, phone, city);
@@ -74,6 +67,45 @@ export const useAuth = () => {
     },
     [],
   );
+
+  // Email OTP
+  const sendOtp = useCallback(async (email: string) => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      await authService.sendEmailOtp(email);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al enviar codigo';
+      setState((s) => ({ ...s, error: message, loading: false }));
+      throw err;
+    } finally {
+      setState((s) => ({ ...s, loading: false }));
+    }
+  }, []);
+
+  const verifyOtp = useCallback(async (email: string, token: string) => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      await authService.verifyEmailOtp(email, token);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Codigo incorrecto o expirado';
+      setState((s) => ({ ...s, error: message, loading: false }));
+      throw err;
+    }
+  }, []);
+
+  const updateProfile = useCallback(async (data: { full_name?: string; phone?: string; city?: string }) => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      await authService.updateProfile(data);
+      // Refresh user data
+      const { data: { user } } = await supabase.auth.getUser();
+      setState((s) => ({ ...s, user, loading: false }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al actualizar perfil';
+      setState((s) => ({ ...s, error: message, loading: false }));
+      throw err;
+    }
+  }, []);
 
   const signOut = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -89,16 +121,21 @@ export const useAuth = () => {
     setState((s) => ({ ...s, error: null }));
   }, []);
 
+  const profile = state.user?.user_metadata as
+    | { full_name?: string; phone?: string; city?: string; avatar_url?: string }
+    | undefined;
+
   return {
     ...state,
     signIn,
     signUp,
+    sendOtp,
+    verifyOtp,
+    updateProfile,
     signOut,
     clearError,
     isAuthenticated: !!state.session,
-    /** Datos del perfil guardados en user_metadata */
-    profile: state.user?.user_metadata as
-      | { full_name?: string; phone?: string; city?: string; avatar_url?: string }
-      | undefined,
+    isProfileComplete: !!(profile?.full_name && profile?.phone),
+    profile,
   };
 };

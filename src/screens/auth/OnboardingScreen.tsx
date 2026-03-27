@@ -56,8 +56,7 @@ export const OnboardingScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const handleGetStarted = () => {
-    // TODO: Navigate to Login when ready
-    navigation.replace('Login');
+    navigation.replace('Terms');
   };
 
   const isLast = activeIndex === slides.length - 1;

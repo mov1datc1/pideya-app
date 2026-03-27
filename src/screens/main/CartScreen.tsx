@@ -7,6 +7,8 @@ import {
   Image,
   StyleSheet,
   Alert,
+  Share,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +20,27 @@ import type { RootStackParamList } from '../../types/navigation';
 import type { CartItem } from '../../types/database';
 
 type NavType = NativeStackNavigationProp<RootStackParamList>;
+
+/** Build a WhatsApp-friendly text summary of the cart */
+const buildCartShareText = (restaurantName: string, items: CartItem[], total: number): string => {
+  let text = `🛒 *Mi pedido de ${restaurantName}*\n`;
+  text += `━━━━━━━━━━━━━━\n`;
+  items.forEach((item) => {
+    const optionsPrice = item.selected_options.reduce((s, o) => s + o.price, 0);
+    const lineTotal = (item.menu_item.price + optionsPrice) * item.quantity;
+    text += `${item.quantity}x ${item.menu_item.name} — $${lineTotal.toFixed(2)}\n`;
+    if (item.selected_options.length > 0) {
+      text += `   ${item.selected_options.map((o) => o.label).join(', ')}\n`;
+    }
+    if (item.notes) {
+      text += `   📝 ${item.notes}\n`;
+    }
+  });
+  text += `━━━━━━━━━━━━━━\n`;
+  text += `💰 *Total: $${total.toFixed(2)}*\n\n`;
+  text += `Hecho con *Pide ya* 🌮`;
+  return text;
+};
 
 export const CartScreen: React.FC = () => {
   const navigation = useNavigation<NavType>();
@@ -37,6 +60,26 @@ export const CartScreen: React.FC = () => {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Vaciar', style: 'destructive', onPress: clearCart },
     ]);
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = buildCartShareText(cart.restaurant_name, cart.items, itemsTotal);
+    const encoded = encodeURIComponent(text);
+    const url = `whatsapp://send?text=${encoded}`;
+
+    Linking.canOpenURL(url).then((supported) => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        // Fallback to generic share
+        Share.share({ message: text });
+      }
+    });
+  };
+
+  const handleShare = () => {
+    const text = buildCartShareText(cart.restaurant_name, cart.items, itemsTotal);
+    Share.share({ message: text });
   };
 
   const renderItem = ({ item }: { item: CartItem }) => {
@@ -96,9 +139,17 @@ export const CartScreen: React.FC = () => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tu carrito</Text>
         {!isEmpty && (
-          <TouchableOpacity onPress={handleClear}>
-            <Text style={styles.clearText}>Vaciar</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleShareWhatsApp} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="share-outline" size={22} color={colors.agave} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleClear}>
+              <Text style={styles.clearText}>Vaciar</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -123,7 +174,7 @@ export const CartScreen: React.FC = () => {
           <FlatList
             data={cart.items}
             renderItem={renderItem}
-            keyExtractor={(item) => item.menu_item.id}
+            keyExtractor={(item, idx) => `${item.menu_item.id}-${idx}`}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
           />
@@ -178,6 +229,11 @@ const styles = StyleSheet.create({
     ...textStyles.h3,
     color: colors.ink,
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
   },
   clearText: {
     fontFamily: fonts.outfit.medium,
