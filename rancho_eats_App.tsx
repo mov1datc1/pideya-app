@@ -2072,8 +2072,6 @@ export default function App() {
 
       if (menuOptionsEnabled && item.menu_item_options && item.menu_item_options.length > 0) {
         for (const option of item.menu_item_options) {
-          const nextOptionType = window.prompt(`Tipo para opción "${option.label}" (size = tamaño, extra = complemento)`, option.option_type ?? 'size');
-          if (nextOptionType === null) continue;
           const nextOptionPriceRaw = window.prompt(`Precio para opción "${option.label}"`, String(option.price));
           if (nextOptionPriceRaw === null) continue;
           const nextOptionLabel = window.prompt(`Nombre para opción "${option.label}"`, option.label);
@@ -2084,14 +2082,12 @@ export default function App() {
           const parsedOptionPrice = Number(nextOptionPriceRaw);
           if (!Number.isFinite(parsedOptionPrice) || parsedOptionPrice <= 0) continue;
 
-          const validOptionType = (nextOptionType === 'extra' ? 'extra' : 'size') as 'size' | 'extra';
           const { error: optionUpdateError } = await supabase
             .from('menu_item_options')
             .update({
               label: nextOptionLabel.trim() || option.label,
               price: parsedOptionPrice,
-              image_url: nextOptionImageUrl.trim() || null,
-              option_type: validOptionType
+              image_url: nextOptionImageUrl.trim() || null
             })
             .eq('id', option.id);
 
