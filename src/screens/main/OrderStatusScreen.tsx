@@ -5,12 +5,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getOrderById, subscribeToOrderStatus } from '../../services/orders';
+import { getOrderById, subscribeToOrderStatus, cancelOrder } from '../../services/orders';
 import { notifyOrderStatusChange } from '../../hooks/useNotifications';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
@@ -39,6 +40,7 @@ export const OrderStatusScreen: React.FC = () => {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     getOrderById(orderId)
@@ -57,6 +59,31 @@ export const OrderStatusScreen: React.FC = () => {
     });
     return unsub;
   }, [orderId]);
+
+  const handleCancel = () => {
+    Alert.alert(
+      'Cancelar pedido',
+      'Seguro que quieres cancelar este pedido?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Si, cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              const updated = await cancelOrder(orderId);
+              setOrder(updated);
+            } catch {
+              Alert.alert('Error', 'No se pudo cancelar el pedido. Es posible que ya fue aceptado.');
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const isRejected = order?.status === 'REJECTED';
   const isCancelled = order?.status === 'CANCELLED';
@@ -188,8 +215,21 @@ export const OrderStatusScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Back to home */}
+      {/* Bottom actions */}
       <View style={[styles.bottomActions, { paddingBottom: insets.bottom + 16 }]}>
+        {order.status === 'PENDING' && (
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={handleCancel}
+            disabled={cancelling}
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color={colors.error} />
+            ) : (
+              <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
+            )}
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.homeBtn}
           onPress={() => navigation.navigate('Main')}
@@ -385,6 +425,20 @@ const styles = StyleSheet.create({
   bottomActions: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+    gap: spacing.sm,
+  },
+  cancelBtn: {
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.error,
   },
   homeBtn: {
     height: 48,
