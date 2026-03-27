@@ -18,7 +18,7 @@ import { AuthStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'OtpVerify'>;
 
-const CODE_LENGTH = 6;
+const CODE_LENGTH = 8;
 
 export const OtpVerifyScreen: React.FC<Props> = ({ navigation, route }) => {
   const { email } = route.params;
@@ -226,8 +226,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   codeBox: {
-    width: 46,
-    height: 56,
+    width: 38,
+    height: 50,
     borderRadius: radius.sm,
     borderWidth: 2,
     borderColor: colors.cloud,
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
   },
   codeDigit: {
     fontFamily: fonts.outfit.bold,
-    fontSize: 24,
+    fontSize: 20,
     color: colors['ink-hint'],
   },
   codeDigitFilled: {
