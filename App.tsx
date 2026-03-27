@@ -18,7 +18,14 @@ import {
 } from '@expo-google-fonts/outfit';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { CartProvider } from './src/hooks/useCart';
+import { useNotificationSetup } from './src/hooks/useNotifications';
 import { colors } from './src/theme';
+
+/** Invisible component that registers push notifications on mount */
+function NotificationSetup() {
+  useNotificationSetup();
+  return null;
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -44,6 +51,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <CartProvider>
+        <NotificationSetup />
         <StatusBar style="auto" />
         <AppNavigator />
       </CartProvider>

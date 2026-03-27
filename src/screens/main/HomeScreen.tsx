@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   StyleSheet,
   TextInput,
   Image,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -15,22 +17,26 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { LogoLockup } from '../../components/branding/LogoLockup';
 import { Card } from '../../components/ui/Card';
-import { Chip } from '../../components/ui/Chip';
 import { useRestaurants } from '../../hooks/useRestaurants';
 import { useAuth } from '../../hooks/useAuth';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
 import type { Restaurant, FoodType } from '../../types/database';
 
-const FOOD_TYPES: { label: string; value: FoodType | 'ALL' }[] = [
-  { label: 'Todos', value: 'ALL' },
-  { label: 'Tacos', value: 'TACOS' },
-  { label: 'Birria', value: 'BIRRIA' },
-  { label: 'Carnes', value: 'CARNES' },
-  { label: 'Pollos', value: 'POLLOS' },
-  { label: 'Mariscos', value: 'MARISCOS' },
-  { label: 'Corrida', value: 'CORRIDA' },
-  { label: 'Antojitos', value: 'ANTOJITOS' },
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH * 0.72;
+const CAROUSEL_CARD_GAP = 12;
+
+// Category icons with fun emojis for Los Altos de Jalisco food
+const CATEGORIES: { label: string; value: FoodType | 'ALL'; emoji: string }[] = [
+  { label: 'Todos', value: 'ALL', emoji: '🍽️' },
+  { label: 'Tacos', value: 'TACOS', emoji: '🌮' },
+  { label: 'Birria', value: 'BIRRIA', emoji: '🥘' },
+  { label: 'Carnes', value: 'CARNES', emoji: '🥩' },
+  { label: 'Pollos', value: 'POLLOS', emoji: '🍗' },
+  { label: 'Mariscos', value: 'MARISCOS', emoji: '🦐' },
+  { label: 'Corrida', value: 'CORRIDA', emoji: '🍲' },
+  { label: 'Antojitos', value: 'ANTOJITOS', emoji: '🫔' },
 ];
 
 export const HomeScreen: React.FC = () => {
@@ -40,10 +46,19 @@ export const HomeScreen: React.FC = () => {
   const [selectedType, setSelectedType] = useState<FoodType | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredRestaurants =
-    selectedType === 'ALL'
-      ? restaurants
-      : restaurants.filter((r) => r.type === selectedType);
+  const filteredRestaurants = useMemo(
+    () =>
+      selectedType === 'ALL'
+        ? restaurants
+        : restaurants.filter((r) => r.type === selectedType),
+    [restaurants, selectedType],
+  );
+
+  // Featured: open restaurants with cover images (promos/popular)
+  const featured = useMemo(
+    () => restaurants.filter((r) => r.is_open && (r.cover_url || r.photo_url)).slice(0, 8),
+    [restaurants],
+  );
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -54,23 +69,60 @@ export const HomeScreen: React.FC = () => {
     ? `Hola, ${profile.full_name.split(' ')[0]}`
     : 'Buen dia';
 
+  const navigateToRestaurant = (item: Restaurant) => {
+    navigation.navigate('RestaurantDetail', {
+      restaurantId: item.id,
+      restaurantName: item.name,
+      coverUrl: item.cover_url || item.photo_url || undefined,
+    });
+  };
+
+  const renderFeaturedCard = ({ item }: { item: Restaurant }) => (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => navigateToRestaurant(item)}
+      style={styles.carouselCard}
+    >
+      <Image
+        source={{ uri: item.cover_url || item.photo_url || '' }}
+        style={styles.carouselImage}
+      />
+      <View style={styles.carouselOverlay} />
+      <View style={styles.carouselInfo}>
+        <Text style={styles.carouselName} numberOfLines={1}>{item.name}</Text>
+        <View style={styles.carouselMeta}>
+          <Text style={styles.carouselType}>{item.type}</Text>
+          {item.description ? (
+            <>
+              <View style={styles.carouselDot} />
+              <Text style={styles.carouselDesc} numberOfLines={1}>{item.description}</Text>
+            </>
+          ) : null}
+        </View>
+      </View>
+      {!item.is_open && (
+        <View style={styles.closedBadge}>
+          <Text style={styles.closedText}>Cerrado</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
   const renderRestaurant = ({ item }: { item: Restaurant }) => (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={() =>
-        navigation.navigate('RestaurantDetail', {
-          restaurantId: item.id,
-          restaurantName: item.name,
-          coverUrl: item.cover_url || item.photo_url || undefined,
-        })
-      }
+      onPress={() => navigateToRestaurant(item)}
     >
       <Card style={styles.restaurantCard}>
-        {(item.cover_url || item.photo_url) && (
+        {(item.cover_url || item.photo_url) ? (
           <Image
             source={{ uri: item.cover_url || item.photo_url || '' }}
             style={styles.restaurantImage}
           />
+        ) : (
+          <View style={[styles.restaurantImage, styles.restaurantImagePlaceholder]}>
+            <Ionicons name="restaurant-outline" size={32} color={colors['ink-hint']} />
+          </View>
         )}
         <View style={styles.restaurantInfo}>
           <Text style={styles.restaurantName}>{item.name}</Text>
@@ -96,12 +148,10 @@ export const HomeScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  return (
-    <ScreenWrapper>
-      <View style={styles.header}>
-        <LogoLockup size="sm" />
-      </View>
-
+  // Build a single scrollable data source with sections
+  const ListHeader = () => (
+    <>
+      {/* Greeting */}
       <Text style={styles.greeting}>{greeting}</Text>
       <Text style={styles.subtitle}>Que se te antoja hoy?</Text>
 
@@ -115,25 +165,69 @@ export const HomeScreen: React.FC = () => {
           value={searchQuery}
           onChangeText={handleSearch}
         />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => handleSearch('')}>
+            <Ionicons name="close-circle" size={18} color={colors['ink-hint']} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Filters */}
-      <FlatList
-        data={FOOD_TYPES}
+      {/* Category Icons */}
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(i) => i.value}
-        contentContainerStyle={styles.chipList}
-        renderItem={({ item }) => (
-          <Chip
-            label={item.label}
-            selected={selectedType === item.value}
-            onPress={() => setSelectedType(item.value)}
-          />
-        )}
-      />
+        contentContainerStyle={styles.categoryRow}
+      >
+        {CATEGORIES.map((cat) => {
+          const isActive = selectedType === cat.value;
+          return (
+            <TouchableOpacity
+              key={cat.value}
+              style={styles.categoryItem}
+              onPress={() => setSelectedType(cat.value)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.categoryCircle, isActive && styles.categoryCircleActive]}>
+                <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+              </View>
+              <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
-      {/* Restaurants */}
+      {/* Featured Carousel */}
+      {featured.length > 0 && !searchQuery && (
+        <View style={styles.carouselSection}>
+          <Text style={styles.sectionTitle}>Destacados</Text>
+          <FlatList
+            data={featured}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => `feat-${item.id}`}
+            renderItem={renderFeaturedCard}
+            contentContainerStyle={styles.carouselList}
+            snapToInterval={CAROUSEL_CARD_WIDTH + CAROUSEL_CARD_GAP}
+            decelerationRate="fast"
+          />
+        </View>
+      )}
+
+      {/* Section title for main list */}
+      <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: spacing.lg }]}>
+        {selectedType === 'ALL' ? 'Todos los restaurantes' : CATEGORIES.find(c => c.value === selectedType)?.label || 'Restaurantes'}
+      </Text>
+    </>
+  );
+
+  return (
+    <ScreenWrapper>
+      <View style={styles.header}>
+        <LogoLockup size="sm" />
+      </View>
+
       {loading ? (
         <ActivityIndicator
           size="large"
@@ -149,6 +243,7 @@ export const HomeScreen: React.FC = () => {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={ListHeader}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No hay restaurantes disponibles</Text>
           }
@@ -161,7 +256,7 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   greeting: {
     ...textStyles.h1,
@@ -177,10 +272,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.snow,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.lg,
     marginTop: spacing.lg,
-    height: 44,
+    height: 46,
     gap: spacing.sm,
   },
   searchInput: {
@@ -189,10 +284,119 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink,
   },
-  chipList: {
-    paddingVertical: spacing.md,
-    gap: spacing.sm,
+  // Category icons row
+  categoryRow: {
+    paddingVertical: spacing.lg,
+    gap: spacing.lg,
   },
+  categoryItem: {
+    alignItems: 'center',
+    width: 68,
+  },
+  categoryCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.cloud,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  categoryCircleActive: {
+    backgroundColor: colors['agave-light'],
+    borderWidth: 2,
+    borderColor: colors.agave,
+  },
+  categoryEmoji: {
+    fontSize: 26,
+  },
+  categoryLabel: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 11,
+    color: colors['ink-secondary'],
+    textAlign: 'center',
+  },
+  categoryLabelActive: {
+    color: colors.agave,
+    fontFamily: fonts.outfit.bold,
+  },
+  // Featured carousel
+  carouselSection: {
+    marginTop: spacing.sm,
+  },
+  sectionTitle: {
+    ...textStyles.h3,
+    color: colors.ink,
+    marginBottom: spacing.md,
+  },
+  carouselList: {
+    gap: CAROUSEL_CARD_GAP,
+  },
+  carouselCard: {
+    width: CAROUSEL_CARD_WIDTH,
+    height: 170,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  carouselImage: {
+    width: '100%',
+    height: '100%',
+  },
+  carouselOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: radius.md,
+  },
+  carouselInfo: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: spacing.md,
+  },
+  carouselName: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 17,
+    color: colors.white,
+  },
+  carouselMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    gap: 4,
+  },
+  carouselType: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.85)',
+  },
+  carouselDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.6)',
+  },
+  carouselDesc: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    flex: 1,
+  },
+  closedBadge: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.sm,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+  },
+  closedText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 11,
+    color: colors.white,
+  },
+  // Restaurant list
   list: {
     paddingBottom: spacing['4xl'],
     gap: spacing.md,
@@ -203,8 +407,12 @@ const styles = StyleSheet.create({
   },
   restaurantImage: {
     width: '100%',
-    height: 140,
+    height: 150,
     backgroundColor: colors.cloud,
+  },
+  restaurantImagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   restaurantInfo: {
     padding: spacing.md,

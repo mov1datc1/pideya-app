@@ -11,6 +11,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getOrderById, subscribeToOrderStatus } from '../../services/orders';
+import { notifyOrderStatusChange } from '../../hooks/useNotifications';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
 import type { Order, OrderStatus } from '../../types/database';
@@ -46,7 +47,13 @@ export const OrderStatusScreen: React.FC = () => {
       .finally(() => setLoading(false));
 
     const unsub = subscribeToOrderStatus(orderId, (updated) => {
-      setOrder(updated);
+      setOrder((prev) => {
+        // Send local notification when status actually changes
+        if (prev && prev.status !== updated.status) {
+          notifyOrderStatusChange(updated.status, updated.order_number);
+        }
+        return updated;
+      });
     });
     return unsub;
   }, [orderId]);

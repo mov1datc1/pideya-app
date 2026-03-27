@@ -25,21 +25,33 @@ import * as restaurantService from '../../services/restaurants';
 type RouteType = RouteProp<RootStackParamList, 'RestaurantDetail'>;
 type NavType = NativeStackNavigationProp<RootStackParamList>;
 
-/** Detect if options are size variants (price >= base price) vs additive extras */
+/**
+ * Classify options using the DB option_type field.
+ * Falls back to price heuristic if option_type is missing (old data).
+ */
 const classifyOptions = (options: MenuItemOption[], basePrice: number) => {
   const sizes: MenuItemOption[] = [];
   const extras: MenuItemOption[] = [];
+
   for (const opt of options) {
-    if (opt.price >= basePrice * 0.8) {
+    if (opt.option_type === 'size') {
       sizes.push(opt);
-    } else {
+    } else if (opt.option_type === 'extra') {
       extras.push(opt);
+    } else {
+      // Fallback heuristic for old data without option_type
+      if (opt.price >= basePrice * 0.8) {
+        sizes.push(opt);
+      } else {
+        extras.push(opt);
+      }
     }
   }
-  // Only treat as sizes if there are 2+ and they all look like variants
+
+  // Only treat as sizes if there are 2+ variants
   if (sizes.length >= 2) return { sizes, extras };
-  // If only 1 "size", treat everything as extras
-  return { sizes: [], extras: options };
+  if (sizes.length === 1) return { sizes: [], extras: [...sizes, ...extras] };
+  return { sizes: [], extras };
 };
 
 export const RestaurantDetailScreen: React.FC = () => {
@@ -74,7 +86,6 @@ export const RestaurantDetailScreen: React.FC = () => {
     try {
       const opts = await restaurantService.getMenuItemOptions(item.id);
       setItemOptions(opts);
-      // Auto-select first size if sizes exist
       const cls = classifyOptions(opts, item.price);
       if (cls.sizes.length > 0) {
         setSelectedSize(cls.sizes[0]);
@@ -94,7 +105,6 @@ export const RestaurantDetailScreen: React.FC = () => {
     );
   };
 
-  // Calculate price: if size selected, use size price; otherwise base price + extras
   const unitPrice = useMemo(() => {
     const base = selectedSize ? selectedSize.price : (selectedItem?.price ?? 0);
     const extrasTotal = selectedExtras.reduce((s, o) => s + o.price, 0);
@@ -106,17 +116,16 @@ export const RestaurantDetailScreen: React.FC = () => {
   const handleAddToCart = () => {
     if (!selectedItem) return;
 
-    // Build the selected options list for cart (size + extras combined)
-    const allSelected: MenuItemOption[] = [];
-    if (selectedSize) allSelected.push(selectedSize);
-    allSelected.push(...selectedExtras);
+    // If sizes exist and none selected, prompt user
+    if (classified.sizes.length > 0 && !selectedSize) {
+      Alert.alert('Selecciona un tamano', 'Elige una opcion de tamano para continuar.');
+      return;
+    }
 
-    // For size variants, create a modified menu item with the size price
     const menuItemForCart: MenuItem = selectedSize
       ? { ...selectedItem, price: selectedSize.price, name: `${selectedItem.name} (${selectedSize.label})` }
       : selectedItem;
 
-    // Only pass extras to cart (size is baked into the item price/name)
     const extrasForCart = selectedExtras;
 
     if (cart.restaurant_id && cart.restaurant_id !== restaurantId && cart.items.length > 0) {
@@ -165,7 +174,6 @@ export const RestaurantDetailScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
-  // Group items by category for display
   const groupedData = useMemo(() => {
     const result: { category: string; items: MenuItem[] }[] = [];
     const displayCategories = selectedCategory ? [selectedCategory] : categories;
@@ -180,17 +188,18 @@ export const RestaurantDetailScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Full-bleed cover image (behind status bar) */}
-      <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false} stickyHeaderIndices={[]}>
+      <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false}>
+        {/* Cover image */}
         <View style={styles.coverContainer}>
           {coverUrl ? (
             <Image source={{ uri: coverUrl }} style={styles.coverImage} />
           ) : (
             <View style={[styles.coverImage, { backgroundColor: colors.agave }]} />
           )}
+          <View style={styles.coverGradient} />
         </View>
 
-        {/* Restaurant name */}
+        {/* Restaurant info */}
         <View style={styles.titleSection}>
           <Text style={styles.restaurantName}>{restaurantName}</Text>
         </View>
@@ -244,11 +253,10 @@ export const RestaurantDetailScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Bottom padding for cart bar */}
         <View style={{ height: itemCount > 0 ? 100 : 40 }} />
       </ScrollView>
 
-      {/* Back button floating over cover */}
+      {/* Back button */}
       <TouchableOpacity
         style={[styles.backButton, { top: insets.top + 8 }]}
         onPress={() => navigation.goBack()}
@@ -271,7 +279,7 @@ export const RestaurantDetailScreen: React.FC = () => {
         </TouchableOpacity>
       )}
 
-      {/* Item detail modal */}
+      {/* ── Item Detail Modal (UberEats-style) ── */}
       <Modal visible={!!selectedItem} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { paddingBottom: insets.bottom + 16 }]}>
@@ -281,17 +289,19 @@ export const RestaurantDetailScreen: React.FC = () => {
             </TouchableOpacity>
 
             {selectedItem && (
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+                {/* Item image */}
                 {selectedItem.photo_url_1 ? (
                   <Image source={{ uri: selectedItem.photo_url_1 }} style={styles.modalImage} />
                 ) : null}
 
+                {/* Item name & description */}
                 <Text style={styles.modalItemName}>{selectedItem.name}</Text>
                 {selectedItem.description ? (
                   <Text style={styles.modalItemDesc}>{selectedItem.description}</Text>
                 ) : null}
 
-                {/* Price: show base or "desde" if sizes exist */}
+                {/* Price */}
                 {classified.sizes.length > 0 ? (
                   <Text style={styles.modalItemPrice}>
                     Desde ${selectedItem.price.toFixed(2)}
@@ -300,6 +310,7 @@ export const RestaurantDetailScreen: React.FC = () => {
                   <Text style={styles.modalItemPrice}>${selectedItem.price.toFixed(2)}</Text>
                 )}
 
+                {/* Combo badge */}
                 {selectedItem.is_combo && selectedItem.combo_description ? (
                   <View style={styles.comboBadge}>
                     <Ionicons name="gift-outline" size={14} color={colors.agave} />
@@ -307,15 +318,23 @@ export const RestaurantDetailScreen: React.FC = () => {
                   </View>
                 ) : null}
 
-                {/* Options */}
+                {/* Options loading */}
                 {loadingOptions ? (
-                  <ActivityIndicator color={colors.agave} style={{ marginTop: spacing.lg }} />
+                  <ActivityIndicator color={colors.agave} style={{ marginTop: spacing.xl }} />
                 ) : (
                   <>
-                    {/* Size variants (radio buttons) */}
+                    {/* ── SIZE VARIANTS (Required, radio) ── */}
                     {classified.sizes.length > 0 && (
                       <View style={styles.optionsSection}>
-                        <Text style={styles.optionsTitle}>Tamano</Text>
+                        <View style={styles.optionsSectionHeader}>
+                          <View>
+                            <Text style={styles.optionsTitle}>Tamano</Text>
+                            <Text style={styles.optionsSubtitle}>Elige una opcion</Text>
+                          </View>
+                          <View style={styles.requiredBadge}>
+                            <Text style={styles.requiredText}>Requerido</Text>
+                          </View>
+                        </View>
                         {classified.sizes.map((opt) => {
                           const isSelected = selectedSize?.id === opt.id;
                           return (
@@ -324,14 +343,14 @@ export const RestaurantDetailScreen: React.FC = () => {
                               style={[styles.optionRow, isSelected && styles.optionRowSelected]}
                               onPress={() => setSelectedSize(opt)}
                             >
-                              <Ionicons
-                                name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-                                size={22}
-                                color={isSelected ? colors.agave : colors['ink-hint']}
-                              />
-                              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                                {opt.label}
-                              </Text>
+                              <View style={styles.optionLeft}>
+                                <View style={[styles.radioOuter, isSelected && styles.radioOuterActive]}>
+                                  {isSelected && <View style={styles.radioInner} />}
+                                </View>
+                                <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+                                  {opt.label}
+                                </Text>
+                              </View>
                               <Text style={[styles.optionPrice, isSelected && styles.optionPriceSelected]}>
                                 ${opt.price.toFixed(2)}
                               </Text>
@@ -341,26 +360,40 @@ export const RestaurantDetailScreen: React.FC = () => {
                       </View>
                     )}
 
-                    {/* Extras (checkboxes) */}
+                    {/* ── EXTRAS (Optional, checkboxes) ── */}
                     {classified.extras.length > 0 && (
                       <View style={styles.optionsSection}>
-                        <Text style={styles.optionsTitle}>Extras</Text>
+                        <View style={styles.optionsSectionHeader}>
+                          <View>
+                            <Text style={styles.optionsTitle}>Extras</Text>
+                            <Text style={styles.optionsSubtitle}>Agrega lo que quieras</Text>
+                          </View>
+                          <View style={styles.optionalBadge}>
+                            <Text style={styles.optionalText}>Opcional</Text>
+                          </View>
+                        </View>
                         {classified.extras.map((opt) => {
                           const isSelected = selectedExtras.some((o) => o.id === opt.id);
                           return (
                             <TouchableOpacity
                               key={opt.id}
-                              style={styles.optionRow}
+                              style={[styles.optionRow, isSelected && styles.optionRowSelected]}
                               onPress={() => toggleExtra(opt)}
                             >
-                              <Ionicons
-                                name={isSelected ? 'checkbox' : 'square-outline'}
-                                size={22}
-                                color={isSelected ? colors.agave : colors['ink-hint']}
-                              />
-                              <Text style={styles.optionLabel}>{opt.label}</Text>
+                              <View style={styles.optionLeft}>
+                                <View style={[styles.checkboxOuter, isSelected && styles.checkboxOuterActive]}>
+                                  {isSelected && (
+                                    <Ionicons name="checkmark" size={14} color={colors.white} />
+                                  )}
+                                </View>
+                                <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+                                  {opt.label}
+                                </Text>
+                              </View>
                               {opt.price > 0 && (
-                                <Text style={styles.optionPrice}>+${opt.price.toFixed(2)}</Text>
+                                <Text style={[styles.optionPrice, isSelected && styles.optionPriceSelected]}>
+                                  +${opt.price.toFixed(2)}
+                                </Text>
                               )}
                             </TouchableOpacity>
                           );
@@ -372,7 +405,7 @@ export const RestaurantDetailScreen: React.FC = () => {
 
                 {/* Notes */}
                 <View style={styles.notesSection}>
-                  <Text style={styles.notesLabel}>Notas (opcional)</Text>
+                  <Text style={styles.notesLabel}>Notas especiales</Text>
                   <TextInput
                     style={styles.notesInput}
                     placeholder="Ej: sin cebolla, extra picante..."
@@ -388,10 +421,11 @@ export const RestaurantDetailScreen: React.FC = () => {
                   <Text style={styles.quantityLabel}>Cantidad</Text>
                   <View style={styles.quantityControls}>
                     <TouchableOpacity
-                      style={styles.qtyBtn}
+                      style={[styles.qtyBtn, quantity <= 1 && styles.qtyBtnDisabled]}
                       onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                      disabled={quantity <= 1}
                     >
-                      <Ionicons name="remove" size={20} color={colors.ink} />
+                      <Ionicons name="remove" size={20} color={quantity <= 1 ? colors['ink-hint'] : colors.ink} />
                     </TouchableOpacity>
                     <Text style={styles.qtyText}>{quantity}</Text>
                     <TouchableOpacity
@@ -408,7 +442,7 @@ export const RestaurantDetailScreen: React.FC = () => {
             {/* Add to cart button */}
             <TouchableOpacity style={styles.addToCartBtn} onPress={handleAddToCart}>
               <Text style={styles.addToCartText}>
-                Agregar ${itemTotal.toFixed(2)}
+                Agregar al carrito  ·  ${itemTotal.toFixed(2)}
               </Text>
             </TouchableOpacity>
           </View>
@@ -432,6 +466,12 @@ const styles = StyleSheet.create({
   coverImage: {
     width: '100%',
     height: 220,
+  },
+  coverGradient: {
+    ...StyleSheet.absoluteFillObject,
+    top: '50%',
+    backgroundColor: 'transparent',
+    // Simulated gradient with bottom fade
   },
   backButton: {
     position: 'absolute',
@@ -607,7 +647,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    maxHeight: '85%',
+    maxHeight: '90%',
   },
   modalHandle: {
     width: 40,
@@ -622,6 +662,15 @@ const styles = StyleSheet.create({
     top: spacing.md,
     right: spacing.lg,
     zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.cloud,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalScroll: {
+    paddingBottom: spacing.md,
   },
   modalImage: {
     width: '100%',
@@ -658,24 +707,105 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors['agave-dark'],
   },
+  // Options sections (UberEats-style)
   optionsSection: {
     marginTop: spacing.xl,
+    backgroundColor: colors.snow,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  optionsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
   },
   optionsTitle: {
     ...textStyles.h3,
     color: colors.ink,
-    marginBottom: spacing.sm,
+  },
+  optionsSubtitle: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: colors['ink-muted'],
+    marginTop: 1,
+  },
+  requiredBadge: {
+    backgroundColor: colors.agave,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+  },
+  requiredText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 10,
+    color: colors.white,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  optionalBadge: {
+    backgroundColor: colors.cloud,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+  },
+  optionalText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 10,
+    color: colors['ink-muted'],
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm + 2,
     paddingHorizontal: spacing.sm,
-    gap: spacing.sm,
     borderRadius: radius.sm,
+    marginBottom: 2,
   },
   optionRowSelected: {
     backgroundColor: colors['agave-light'],
+  },
+  optionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.sm,
+  },
+  // Custom radio button
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors['ink-hint'],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioOuterActive: {
+    borderColor: colors.agave,
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.agave,
+  },
+  // Custom checkbox
+  checkboxOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors['ink-hint'],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxOuterActive: {
+    backgroundColor: colors.agave,
+    borderColor: colors.agave,
   },
   optionLabel: {
     fontFamily: fonts.outfit.regular,
@@ -697,12 +827,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.outfit.semiBold,
   },
   notesSection: {
-    marginTop: spacing.lg,
+    marginTop: spacing.xl,
   },
   notesLabel: {
-    fontFamily: fonts.outfit.medium,
+    fontFamily: fonts.outfit.semiBold,
     fontSize: 14,
-    color: colors['ink-secondary'],
+    color: colors.ink,
     marginBottom: spacing.xs,
   },
   notesInput: {
@@ -712,7 +842,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.outfit.regular,
     fontSize: 14,
     color: colors.ink,
-    minHeight: 40,
+    minHeight: 44,
   },
   quantityRow: {
     flexDirection: 'row',
@@ -733,25 +863,30 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   qtyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.cloud,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  qtyBtnDisabled: {
+    opacity: 0.4,
   },
   qtyText: {
     fontFamily: fonts.outfit.semiBold,
     fontSize: 18,
     color: colors.ink,
+    minWidth: 24,
+    textAlign: 'center',
   },
   addToCartBtn: {
     backgroundColor: colors.agave,
-    height: 52,
+    height: 54,
     borderRadius: radius.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
   },
   addToCartText: {
     fontFamily: fonts.outfit.bold,

@@ -77,11 +77,14 @@ export interface MenuItem {
   updated_at: string;
 }
 
+export type MenuOptionType = 'size' | 'extra';
+
 export interface MenuItemOption {
   id: string;
   menu_item_id: string;
   label: string;
   price: number;
+  option_type: MenuOptionType;
   available: boolean;
   sort_order: number;
   created_at: string;
