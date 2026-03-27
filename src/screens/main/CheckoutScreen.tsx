@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -32,6 +33,9 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] =
 
 const TIP_OPTIONS = [0, 10, 20, 30, 50];
 
+/** Service fee as % of subtotal */
+const SERVICE_FEE_RATE = 0.08;
+
 export const CheckoutScreen: React.FC = () => {
   const navigation = useNavigation<NavType>();
   const insets = useSafeAreaInsets();
@@ -54,13 +58,13 @@ export const CheckoutScreen: React.FC = () => {
   const [addressLabel, setAddressLabel] = useState('');
   const [showNewAddress, setShowNewAddress] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showOrderItems, setShowOrderItems] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Load saved addresses
   useEffect(() => {
     addressService.getAddresses().then((addrs) => {
       setSavedAddresses(addrs);
-      // Auto-select default or first address
       const def = addrs.find((a) => a.is_default) || addrs[0];
       if (def && !addressText) {
         setSelectedAddressId(def.id);
@@ -117,8 +121,22 @@ export const CheckoutScreen: React.FC = () => {
     ]);
   };
 
+  // Price calculations
   const deliveryFee = 25;
-  const total = itemsTotal + deliveryFee + cart.tip_amount;
+  const serviceFee = useMemo(() => Math.round(itemsTotal * SERVICE_FEE_RATE * 100) / 100, [itemsTotal]);
+  const total = itemsTotal + deliveryFee + serviceFee + cart.tip_amount;
+
+  const selectedAddress = useMemo(
+    () => savedAddresses.find((a) => a.id === selectedAddressId),
+    [savedAddresses, selectedAddressId],
+  );
+
+  const getAddressIcon = (label: string): string => {
+    const l = label.toLowerCase();
+    if (l.includes('casa') || l.includes('home')) return 'home';
+    if (l.includes('trabajo') || l.includes('oficina') || l.includes('work')) return 'briefcase';
+    return 'location';
+  };
 
   const handlePlaceOrder = async () => {
     if (!addressText.trim()) {
@@ -177,136 +195,200 @@ export const CheckoutScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Confirmar pedido</Text>
+        <Text style={styles.headerTitle}>Terminar y pagar</Text>
         <View style={{ width: 22 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Delivery address */}
+        {/* ── DELIVERY ADDRESS ── */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="location-outline" size={20} color={colors.agave} />
-            <Text style={styles.sectionTitle}>Direccion de entrega</Text>
-          </View>
+          {/* Selected address display (UberEats style) */}
+          {selectedAddress && !showNewAddress ? (
+            <TouchableOpacity
+              style={styles.addressCard}
+              onPress={() => setShowNewAddress(true)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.addressIconCircle}>
+                <Ionicons
+                  name={getAddressIcon(selectedAddress.label) as keyof typeof Ionicons.glyphMap}
+                  size={20}
+                  color={colors.agave}
+                />
+              </View>
+              <View style={styles.addressCardInfo}>
+                <Text style={styles.addressCardLabel}>{selectedAddress.label}</Text>
+                <Text style={styles.addressCardText} numberOfLines={2}>
+                  {selectedAddress.address_text}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
+            </TouchableOpacity>
+          ) : null}
 
-          {/* Saved addresses */}
-          {savedAddresses.length > 0 && (
-            <View style={styles.savedAddresses}>
-              {savedAddresses.map((addr) => (
-                <TouchableOpacity
-                  key={addr.id}
-                  style={[
-                    styles.savedAddr,
-                    selectedAddressId === addr.id && !showNewAddress && styles.savedAddrActive,
-                  ]}
-                  onPress={() => selectAddress(addr)}
-                >
-                  <View style={styles.savedAddrIcon}>
-                    <Ionicons
-                      name={addr.label.toLowerCase().includes('casa') ? 'home-outline' :
-                            addr.label.toLowerCase().includes('trabajo') ? 'briefcase-outline' : 'location-outline'}
-                      size={18}
-                      color={selectedAddressId === addr.id && !showNewAddress ? colors.agave : colors['ink-muted']}
-                    />
-                  </View>
-                  <View style={styles.savedAddrInfo}>
-                    <Text style={[
-                      styles.savedAddrLabel,
-                      selectedAddressId === addr.id && !showNewAddress && styles.savedAddrLabelActive,
-                    ]}>
-                      {addr.label}
-                    </Text>
-                    <Text style={styles.savedAddrText} numberOfLines={1}>{addr.address_text}</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleDeleteAddress(addr.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Ionicons name="close-circle-outline" size={18} color={colors['ink-hint']} />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          {/* Delivery instructions */}
+          {selectedAddress && !showNewAddress && locationNote ? (
+            <TouchableOpacity style={styles.instructionsRow} activeOpacity={0.7}>
+              <Ionicons name="person-outline" size={20} color={colors['ink-muted']} />
+              <View style={styles.instructionsInfo}>
+                <Text style={styles.instructionsTitle}>Instrucciones de entrega</Text>
+                <Text style={styles.instructionsText} numberOfLines={1}>{locationNote}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
+            </TouchableOpacity>
+          ) : null}
 
-          {/* New address toggle */}
-          <TouchableOpacity
-            style={[styles.newAddrBtn, showNewAddress && styles.newAddrBtnActive]}
-            onPress={() => {
-              setShowNewAddress(true);
-              setSelectedAddressId(null);
-              setAddressText('');
-              setLocationNote('');
-            }}
-          >
-            <Ionicons name="add-circle-outline" size={18} color={showNewAddress ? colors.agave : colors['ink-muted']} />
-            <Text style={[styles.newAddrBtnText, showNewAddress && styles.newAddrBtnTextActive]}>
-              Nueva direccion
-            </Text>
-          </TouchableOpacity>
+          {/* Saved addresses selector (shown when editing) */}
+          {(showNewAddress || !selectedAddress) && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="location-outline" size={20} color={colors.agave} />
+                <Text style={styles.sectionTitle}>Direccion de entrega</Text>
+              </View>
 
-          {/* Address inputs */}
-          {showNewAddress && (
-            <View style={styles.addressInputs}>
-              <TextInput
-                style={styles.addressInput}
-                placeholder="Ej: Calle Hidalgo #123, Centro"
-                placeholderTextColor={colors['ink-hint']}
-                value={addressText}
-                onChangeText={setAddressText}
-                multiline
-              />
-              <TextInput
-                style={styles.noteInput}
-                placeholder="Referencia: entre calles, color de casa..."
-                placeholderTextColor={colors['ink-hint']}
-                value={locationNote}
-                onChangeText={setLocationNote}
-              />
-              {addressText.trim().length > 0 && (
-                <TouchableOpacity
-                  style={styles.saveAddrBtn}
-                  onPress={() => setShowSaveModal(true)}
-                >
-                  <Ionicons name="bookmark-outline" size={16} color={colors.agave} />
-                  <Text style={styles.saveAddrBtnText}>Guardar esta direccion</Text>
-                </TouchableOpacity>
+              {savedAddresses.length > 0 && (
+                <View style={styles.savedAddresses}>
+                  {savedAddresses.map((addr) => (
+                    <TouchableOpacity
+                      key={addr.id}
+                      style={[
+                        styles.savedAddr,
+                        selectedAddressId === addr.id && styles.savedAddrActive,
+                      ]}
+                      onPress={() => selectAddress(addr)}
+                    >
+                      <View style={styles.savedAddrIcon}>
+                        <Ionicons
+                          name={getAddressIcon(addr.label) as keyof typeof Ionicons.glyphMap}
+                          size={18}
+                          color={selectedAddressId === addr.id ? colors.agave : colors['ink-muted']}
+                        />
+                      </View>
+                      <View style={styles.savedAddrInfo}>
+                        <Text style={[
+                          styles.savedAddrLabel,
+                          selectedAddressId === addr.id && styles.savedAddrLabelActive,
+                        ]}>
+                          {addr.label}
+                        </Text>
+                        <Text style={styles.savedAddrText} numberOfLines={1}>{addr.address_text}</Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteAddress(addr.id)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons name="close-circle-outline" size={18} color={colors['ink-hint']} />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               )}
-            </View>
+
+              {/* New address form */}
+              <View style={styles.addressInputs}>
+                <TextInput
+                  style={styles.addressInput}
+                  placeholder="Ej: Calle Hidalgo #123, Centro"
+                  placeholderTextColor={colors['ink-hint']}
+                  value={addressText}
+                  onChangeText={setAddressText}
+                  multiline
+                />
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Referencia: entre calles, color de casa..."
+                  placeholderTextColor={colors['ink-hint']}
+                  value={locationNote}
+                  onChangeText={setLocationNote}
+                />
+                {addressText.trim().length > 0 && (
+                  <TouchableOpacity
+                    style={styles.saveAddrBtn}
+                    onPress={() => setShowSaveModal(true)}
+                  >
+                    <Ionicons name="bookmark-outline" size={16} color={colors.agave} />
+                    <Text style={styles.saveAddrBtnText}>Guardar esta direccion</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </>
           )}
         </View>
 
-        {/* Payment method */}
+        {/* ── ORDER SUMMARY (collapsible) ── */}
+        <TouchableOpacity
+          style={styles.orderSummaryCard}
+          onPress={() => setShowOrderItems((v) => !v)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.orderSummaryLeft}>
+            <Ionicons name="restaurant" size={20} color={colors.agave} />
+            <View>
+              <Text style={styles.orderSummaryName}>{cart.restaurant_name}</Text>
+              <Text style={styles.orderSummaryCount}>
+                {itemCount} {itemCount === 1 ? 'articulo' : 'articulos'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={showOrderItems ? 'chevron-up' : 'chevron-down'}
+            size={20}
+            color={colors['ink-muted']}
+          />
+        </TouchableOpacity>
+
+        {/* Expanded item list */}
+        {showOrderItems && (
+          <View style={styles.orderItemsList}>
+            {cart.items.map((item, idx) => {
+              const optionsPrice = item.selected_options.reduce((s, o) => s + o.price, 0);
+              const lineTotal = (item.menu_item.price + optionsPrice) * item.quantity;
+              return (
+                <View key={idx} style={styles.orderItemRow}>
+                  <View style={styles.orderItemQty}>
+                    <Text style={styles.orderItemQtyText}>{item.quantity}x</Text>
+                  </View>
+                  <View style={styles.orderItemInfo}>
+                    <Text style={styles.orderItemName}>{item.menu_item.name}</Text>
+                    {item.selected_options.length > 0 && (
+                      <Text style={styles.orderItemOptions}>
+                        {item.selected_options.map((o) => o.label).join(', ')}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={styles.orderItemPrice}>${lineTotal.toFixed(2)}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── PAYMENT METHOD ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="wallet-outline" size={20} color={colors.agave} />
-            <Text style={styles.sectionTitle}>Metodo de pago</Text>
+            <Text style={styles.sectionTitle}>Pago</Text>
           </View>
           <View style={styles.paymentOptions}>
-            {PAYMENT_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.paymentOption,
-                  cart.payment_method === opt.value && styles.paymentOptionActive,
-                ]}
-                onPress={() => setPaymentMethod(opt.value)}
-              >
-                <Ionicons
-                  name={opt.icon as keyof typeof Ionicons.glyphMap}
-                  size={22}
-                  color={cart.payment_method === opt.value ? colors.agave : colors['ink-muted']}
-                />
-                <Text
-                  style={[
-                    styles.paymentLabel,
-                    cart.payment_method === opt.value && styles.paymentLabelActive,
-                  ]}
+            {PAYMENT_OPTIONS.map((opt) => {
+              const isActive = cart.payment_method === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.paymentOption, isActive && styles.paymentOptionActive]}
+                  onPress={() => setPaymentMethod(opt.value)}
                 >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Ionicons
+                    name={opt.icon as keyof typeof Ionicons.glyphMap}
+                    size={22}
+                    color={isActive ? colors.agave : colors['ink-muted']}
+                  />
+                  <Text style={[styles.paymentLabel, isActive && styles.paymentLabelActive]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {cart.payment_method === 'cash' && (
@@ -320,60 +402,82 @@ export const CheckoutScreen: React.FC = () => {
                 value={cart.pays_with ? String(cart.pays_with) : ''}
                 onChangeText={(v) => setPaysWith(v ? Number(v) : null)}
               />
+              {cart.pays_with && cart.pays_with > total && (
+                <Text style={styles.changeText}>
+                  Cambio: ${(cart.pays_with - total).toFixed(2)}
+                </Text>
+              )}
             </View>
           )}
         </View>
 
-        {/* Tip */}
+        {/* ── TIP ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="heart-outline" size={20} color={colors.agave} />
             <Text style={styles.sectionTitle}>Propina para el repartidor</Text>
           </View>
           <View style={styles.tipOptions}>
-            {TIP_OPTIONS.map((amount) => (
-              <TouchableOpacity
-                key={amount}
-                style={[
-                  styles.tipOption,
-                  cart.tip_amount === amount && styles.tipOptionActive,
-                ]}
-                onPress={() => setTip(amount)}
-              >
-                <Text
-                  style={[
-                    styles.tipText,
-                    cart.tip_amount === amount && styles.tipTextActive,
-                  ]}
+            {TIP_OPTIONS.map((amount) => {
+              const isActive = cart.tip_amount === amount;
+              return (
+                <TouchableOpacity
+                  key={amount}
+                  style={[styles.tipOption, isActive && styles.tipOptionActive]}
+                  onPress={() => setTip(amount)}
                 >
-                  {amount === 0 ? 'Sin propina' : `$${amount}`}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.tipText, isActive && styles.tipTextActive]}>
+                    {amount === 0 ? 'Sin propina' : `$${amount}`}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
-        {/* Order summary */}
+        {/* ── PRICE BREAKDOWN ── */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="receipt-outline" size={20} color={colors.agave} />
-            <Text style={styles.sectionTitle}>Resumen</Text>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>Subtotal</Text>
+            <Text style={styles.priceValue}>${itemsTotal.toFixed(2)}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal ({itemCount} productos)</Text>
-            <Text style={styles.summaryValue}>${itemsTotal.toFixed(2)}</Text>
+          <View style={styles.priceRow}>
+            <View style={styles.priceLabelRow}>
+              <Text style={styles.priceLabel}>Costo de envio</Text>
+              <TouchableOpacity
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => Alert.alert(
+                  'Costo de envio',
+                  'El costo de envio se calcula segun la distancia entre el restaurante y tu direccion.',
+                )}
+              >
+                <Ionicons name="information-circle-outline" size={16} color={colors['ink-hint']} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.priceValue}>${deliveryFee.toFixed(2)}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Envio</Text>
-            <Text style={styles.summaryValue}>${deliveryFee.toFixed(2)}</Text>
+          <View style={styles.priceRow}>
+            <View style={styles.priceLabelRow}>
+              <Text style={styles.priceLabel}>Cuota de servicio</Text>
+              <TouchableOpacity
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                onPress={() => Alert.alert(
+                  'Cuota de servicio',
+                  'Esta cuota ayuda a mantener la plataforma y mejorar el servicio para ti.',
+                )}
+              >
+                <Ionicons name="information-circle-outline" size={16} color={colors['ink-hint']} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.priceValue}>${serviceFee.toFixed(2)}</Text>
           </View>
           {cart.tip_amount > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Propina</Text>
-              <Text style={styles.summaryValue}>${cart.tip_amount.toFixed(2)}</Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>Propina</Text>
+              <Text style={styles.priceValue}>${cart.tip_amount.toFixed(2)}</Text>
             </View>
           )}
-          <View style={[styles.summaryRow, styles.totalRow]}>
+          <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
           </View>
@@ -382,7 +486,7 @@ export const CheckoutScreen: React.FC = () => {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Place order button */}
+      {/* ── PLACE ORDER BUTTON ── */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={[styles.orderBtn, submitting && styles.orderBtnDisabled]}
@@ -393,27 +497,46 @@ export const CheckoutScreen: React.FC = () => {
           {submitting ? (
             <ActivityIndicator color={colors.white} />
           ) : (
-            <>
-              <Text style={styles.orderBtnText}>Pedir ahora</Text>
-              <Text style={styles.orderBtnPrice}>${total.toFixed(2)}</Text>
-            </>
+            <Text style={styles.orderBtnText}>
+              Hacer el pedido  ·  ${total.toFixed(2)}
+            </Text>
           )}
         </TouchableOpacity>
       </View>
 
-      {/* Save address modal */}
+      {/* ── SAVE ADDRESS MODAL ── */}
       <Modal visible={showSaveModal} animationType="fade" transparent>
         <View style={styles.saveModalOverlay}>
           <View style={styles.saveModalContent}>
             <Text style={styles.saveModalTitle}>Guardar direccion</Text>
             <Text style={styles.saveModalSubtitle}>Dale un nombre para encontrarla facil</Text>
+
+            {/* Quick label chips */}
+            <View style={styles.labelChips}>
+              {['Casa', 'Trabajo', 'Familia'].map((l) => (
+                <TouchableOpacity
+                  key={l}
+                  style={[styles.labelChip, addressLabel === l && styles.labelChipActive]}
+                  onPress={() => setAddressLabel(l)}
+                >
+                  <Ionicons
+                    name={l === 'Casa' ? 'home-outline' : l === 'Trabajo' ? 'briefcase-outline' : 'people-outline'}
+                    size={14}
+                    color={addressLabel === l ? colors.agave : colors['ink-muted']}
+                  />
+                  <Text style={[styles.labelChipText, addressLabel === l && styles.labelChipTextActive]}>
+                    {l}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TextInput
               style={styles.saveModalInput}
-              placeholder="Ej: Casa, Trabajo, Mama..."
+              placeholder="O escribe un nombre..."
               placeholderTextColor={colors['ink-hint']}
               value={addressLabel}
               onChangeText={setAddressLabel}
-              autoFocus
             />
             <View style={styles.saveModalActions}>
               <TouchableOpacity
@@ -473,10 +596,62 @@ const styles = StyleSheet.create({
     ...textStyles.h3,
     color: colors.ink,
   },
-  // Saved addresses
+  // ── Address card (compact view) ──
+  addressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  addressIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors['agave-light'],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addressCardInfo: {
+    flex: 1,
+  },
+  addressCardLabel: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  addressCardText: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 13,
+    color: colors['ink-muted'],
+    marginTop: 1,
+  },
+  // Delivery instructions row
+  instructionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.cloud,
+  },
+  instructionsInfo: {
+    flex: 1,
+  },
+  instructionsTitle: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  instructionsText: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 13,
+    color: colors['ink-muted'],
+    marginTop: 1,
+  },
+  // ── Saved addresses ──
   savedAddresses: {
     gap: spacing.sm,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   savedAddr: {
     flexDirection: 'row',
@@ -516,21 +691,7 @@ const styles = StyleSheet.create({
     color: colors['ink-muted'],
     marginTop: 1,
   },
-  newAddrBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  newAddrBtnActive: {},
-  newAddrBtnText: {
-    fontFamily: fonts.outfit.medium,
-    fontSize: 14,
-    color: colors['ink-muted'],
-  },
-  newAddrBtnTextActive: {
-    color: colors.agave,
-  },
+  // ── Address inputs ──
   addressInputs: {
     marginTop: spacing.xs,
   },
@@ -557,7 +718,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
     alignSelf: 'flex-start',
   },
   saveAddrBtnText: {
@@ -565,6 +726,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.agave,
   },
+  // ── Order summary (collapsible) ──
+  orderSummaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.white,
+    marginTop: spacing.sm,
+    padding: spacing.lg,
+  },
+  orderSummaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  orderSummaryName: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  orderSummaryCount: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 13,
+    color: colors['ink-muted'],
+  },
+  orderItemsList: {
+    backgroundColor: colors.white,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+  },
+  orderItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cloud,
+  },
+  orderItemQty: {
+    width: 28,
+  },
+  orderItemQtyText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 14,
+    color: colors.agave,
+  },
+  orderItemInfo: {
+    flex: 1,
+  },
+  orderItemName: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 14,
+    color: colors.ink,
+  },
+  orderItemOptions: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: colors['ink-muted'],
+    marginTop: 1,
+  },
+  orderItemPrice: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 14,
+    color: colors['ink-secondary'],
+    marginLeft: spacing.sm,
+  },
+  // ── Payment ──
   paymentOptions: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -612,6 +838,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.ink,
   },
+  changeText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 14,
+    color: colors.agave,
+  },
+  // ── Tip ──
   tipOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -619,7 +851,7 @@ const styles = StyleSheet.create({
   },
   tipOption: {
     paddingHorizontal: spacing.lg,
-    height: 36,
+    height: 38,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: radius.pill,
@@ -637,23 +869,33 @@ const styles = StyleSheet.create({
   },
   tipTextActive: {
     color: colors.agave,
+    fontFamily: fonts.outfit.semiBold,
   },
-  summaryRow: {
+  // ── Price breakdown ──
+  priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    alignItems: 'center',
+    marginBottom: spacing.sm + 2,
   },
-  summaryLabel: {
+  priceLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  priceLabel: {
     fontFamily: fonts.outfit.regular,
-    fontSize: 14,
+    fontSize: 15,
     color: colors['ink-secondary'],
   },
-  summaryValue: {
+  priceValue: {
     fontFamily: fonts.outfit.medium,
-    fontSize: 14,
+    fontSize: 15,
     color: colors['ink-secondary'],
   },
   totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: colors.cloud,
     paddingTop: spacing.md,
@@ -661,7 +903,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     fontFamily: fonts.outfit.bold,
-    fontSize: 16,
+    fontSize: 17,
     color: colors.ink,
   },
   totalValue: {
@@ -669,6 +911,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     color: colors.agave,
   },
+  // ── Footer ──
   footer: {
     position: 'absolute',
     bottom: 0,
@@ -676,18 +919,21 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: colors.white,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.cloud,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 4,
   },
   orderBtn: {
-    backgroundColor: colors.agave,
+    backgroundColor: colors.ink,
     height: 56,
     borderRadius: radius.md,
-    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.md,
   },
   orderBtnDisabled: {
     opacity: 0.7,
@@ -697,12 +943,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.white,
   },
-  orderBtnPrice: {
-    fontFamily: fonts.playfair.bold,
-    fontSize: 17,
-    color: colors.white,
-  },
-  // Save address modal
+  // ── Save address modal ──
   saveModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -724,7 +965,34 @@ const styles = StyleSheet.create({
     ...textStyles.caption,
     color: colors['ink-muted'],
     marginTop: spacing.xs,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  labelChips: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  labelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    height: 34,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.cloud,
+  },
+  labelChipActive: {
+    borderColor: colors.agave,
+    backgroundColor: colors['agave-light'],
+  },
+  labelChipText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 13,
+    color: colors['ink-muted'],
+  },
+  labelChipTextActive: {
+    color: colors.agave,
   },
   saveModalInput: {
     backgroundColor: colors.snow,
