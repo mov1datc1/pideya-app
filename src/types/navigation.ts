@@ -30,5 +30,11 @@ export type RootStackParamList = {
   Notifications: undefined;
   Rating: { orderId: string };
   Address: undefined;
+  AddressPicker: {
+    latitude?: number;
+    longitude?: number;
+    currentAddress?: string;
+    onSelect?: (data: { address: string; latitude: number; longitude: number }) => void;
+  };
   OrderHistory: undefined;
 };

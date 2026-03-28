@@ -5,13 +5,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getOrderById, subscribeToOrderStatus } from '../../services/orders';
+import { getOrderById, subscribeToOrderStatus, cancelOrder } from '../../services/orders';
+import { subscribeToOrderTracking } from '../../services/tracking';
 import { notifyOrderStatusChange } from '../../hooks/useNotifications';
+import { OrderTrackingMap } from '../../components/OrderTrackingMap';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
 import type { Order, OrderStatus } from '../../types/database';
@@ -39,6 +43,7 @@ export const OrderStatusScreen: React.FC = () => {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     getOrderById(orderId)
@@ -46,17 +51,48 @@ export const OrderStatusScreen: React.FC = () => {
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    const unsub = subscribeToOrderStatus(orderId, (updated) => {
+    // Subscribe to both order status and tracking (driver location)
+    const unsubStatus = subscribeToOrderStatus(orderId, (updated) => {
       setOrder((prev) => {
-        // Send local notification when status actually changes
         if (prev && prev.status !== updated.status) {
           notifyOrderStatusChange(updated.status, updated.order_number);
         }
         return updated;
       });
     });
-    return unsub;
+    const unsubTracking = subscribeToOrderTracking(orderId, (updated) => {
+      setOrder(updated);
+    });
+    return () => {
+      unsubStatus();
+      unsubTracking();
+    };
   }, [orderId]);
+
+  const handleCancel = () => {
+    Alert.alert(
+      'Cancelar pedido',
+      'Seguro que quieres cancelar este pedido?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Si, cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              const updated = await cancelOrder(orderId);
+              setOrder(updated);
+            } catch {
+              Alert.alert('Error', 'No se pudo cancelar el pedido. Es posible que ya fue aceptado.');
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const isRejected = order?.status === 'REJECTED';
   const isCancelled = order?.status === 'CANCELLED';
@@ -79,6 +115,9 @@ export const OrderStatusScreen: React.FC = () => {
     );
   }
 
+  const isActive = !isRejected && !isCancelled && !isDelivered;
+  const showMap = isActive && (order.status === 'ACCEPTED' || order.status === 'ON_THE_WAY');
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -90,106 +129,156 @@ export const OrderStatusScreen: React.FC = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      {/* Status animation area */}
-      <View style={styles.statusArea}>
-        {isRejected || isCancelled ? (
-          <View style={styles.rejectedContainer}>
-            <Ionicons
-              name={isRejected ? 'close-circle' : 'ban'}
-              size={80}
-              color={colors.error}
-            />
-            <Text style={styles.rejectedTitle}>
-              {isRejected ? 'Pedido rechazado' : 'Pedido cancelado'}
-            </Text>
-            {order.rejection_reason && (
-              <Text style={styles.rejectedReason}>{order.rejection_reason}</Text>
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        {/* Status animation area */}
+        <View style={styles.statusArea}>
+          {isRejected || isCancelled ? (
+            <View style={styles.rejectedContainer}>
+              <Ionicons
+                name={isRejected ? 'close-circle' : 'ban'}
+                size={80}
+                color={colors.error}
+              />
+              <Text style={styles.rejectedTitle}>
+                {isRejected ? 'Pedido rechazado' : 'Pedido cancelado'}
+              </Text>
+              {order.rejection_reason && (
+                <Text style={styles.rejectedReason}>{order.rejection_reason}</Text>
+              )}
+            </View>
+          ) : isDelivered ? (
+            <View style={styles.deliveredContainer}>
+              <Ionicons name="checkmark-circle" size={80} color={colors.agave} />
+              <Text style={styles.deliveredTitle}>Pedido entregado!</Text>
+              <Text style={styles.deliveredSubtitle}>Buen provecho!</Text>
+            </View>
+          ) : (
+            <View style={styles.activeContainer}>
+              <View style={styles.pulseCircle}>
+                <Ionicons
+                  name={STATUS_STEPS[currentIdx]?.icon as keyof typeof Ionicons.glyphMap || 'time'}
+                  size={40}
+                  color={colors.agave}
+                />
+              </View>
+              <Text style={styles.activeStatus}>
+                {STATUS_STEPS[currentIdx]?.label || order.status}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Live tracking map */}
+        {showMap && (
+          <OrderTrackingMap
+            restaurantLat={null}
+            restaurantLng={null}
+            restaurantName={undefined}
+            clientLat={order.client_lat}
+            clientLng={order.client_lng}
+            driverLat={order.driver_last_lat}
+            driverLng={order.driver_last_lng}
+            driverName={order.delivery_driver_name}
+            status={order.status}
+          />
+        )}
+
+        {/* Driver info card */}
+        {order.status === 'ON_THE_WAY' && order.delivery_driver_name && (
+          <View style={styles.driverCard}>
+            <View style={styles.driverAvatar}>
+              <Ionicons name="person" size={24} color={colors.white} />
+            </View>
+            <View style={styles.driverInfo}>
+              <Text style={styles.driverName}>{order.delivery_driver_name}</Text>
+              <Text style={styles.driverLabel}>Tu repartidor</Text>
+            </View>
+            {order.delivery_driver_phone && (
+              <TouchableOpacity style={styles.driverCallBtn}>
+                <Ionicons name="call" size={20} color={colors.agave} />
+              </TouchableOpacity>
             )}
           </View>
-        ) : isDelivered ? (
-          <View style={styles.deliveredContainer}>
-            <Ionicons name="checkmark-circle" size={80} color={colors.agave} />
-            <Text style={styles.deliveredTitle}>Pedido entregado!</Text>
-            <Text style={styles.deliveredSubtitle}>Buen provecho!</Text>
-          </View>
-        ) : (
-          <View style={styles.activeContainer}>
-            <View style={styles.pulseCircle}>
-              <Ionicons
-                name={STATUS_STEPS[currentIdx]?.icon as keyof typeof Ionicons.glyphMap || 'time'}
-                size={40}
-                color={colors.agave}
-              />
-            </View>
-            <Text style={styles.activeStatus}>
-              {STATUS_STEPS[currentIdx]?.label || order.status}
-            </Text>
-          </View>
         )}
-      </View>
 
-      {/* Progress steps */}
-      {!isRejected && !isCancelled && (
-        <View style={styles.stepsContainer}>
-          {STATUS_STEPS.map((step, idx) => {
-            const isDone = idx <= currentIdx;
-            const isCurrent = idx === currentIdx;
-            return (
-              <View key={step.status} style={styles.stepRow}>
-                <View style={styles.stepIndicatorCol}>
-                  <View
-                    style={[
-                      styles.stepDot,
-                      isDone && styles.stepDotDone,
-                      isCurrent && styles.stepDotCurrent,
-                    ]}
-                  >
-                    {isDone && (
-                      <Ionicons name="checkmark" size={14} color={colors.white} />
-                    )}
-                  </View>
-                  {idx < STATUS_STEPS.length - 1 && (
+        {/* Progress steps */}
+        {!isRejected && !isCancelled && (
+          <View style={styles.stepsContainer}>
+            {STATUS_STEPS.map((step, idx) => {
+              const isDone = idx <= currentIdx;
+              const isCurrent = idx === currentIdx;
+              return (
+                <View key={step.status} style={styles.stepRow}>
+                  <View style={styles.stepIndicatorCol}>
                     <View
                       style={[
-                        styles.stepLine,
-                        isDone && styles.stepLineDone,
+                        styles.stepDot,
+                        isDone && styles.stepDotDone,
+                        isCurrent && styles.stepDotCurrent,
                       ]}
-                    />
-                  )}
+                    >
+                      {isDone && (
+                        <Ionicons name="checkmark" size={14} color={colors.white} />
+                      )}
+                    </View>
+                    {idx < STATUS_STEPS.length - 1 && (
+                      <View
+                        style={[
+                          styles.stepLine,
+                          isDone && styles.stepLineDone,
+                        ]}
+                      />
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      styles.stepLabel,
+                      isDone && styles.stepLabelDone,
+                      isCurrent && styles.stepLabelCurrent,
+                    ]}
+                  >
+                    {step.label}
+                  </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.stepLabel,
-                    isDone && styles.stepLabelDone,
-                    isCurrent && styles.stepLabelCurrent,
-                  ]}
-                >
-                  {step.label}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Order details */}
-      <View style={styles.detailsSection}>
-        <Text style={styles.detailsTitle}>Detalle del pedido</Text>
-        {order.items.map((item, idx) => (
-          <View key={idx} style={styles.detailRow}>
-            <Text style={styles.detailQty}>{item.quantity}x</Text>
-            <Text style={styles.detailName}>{item.name}</Text>
-            <Text style={styles.detailPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+              );
+            })}
           </View>
-        ))}
-        <View style={[styles.detailRow, styles.detailTotalRow]}>
-          <Text style={styles.detailTotalLabel}>Total</Text>
-          <Text style={styles.detailTotalValue}>${order.total.toFixed(2)}</Text>
-        </View>
-      </View>
+        )}
 
-      {/* Back to home */}
+        {/* Order details */}
+        <View style={styles.detailsSection}>
+          <Text style={styles.detailsTitle}>Detalle del pedido</Text>
+          {order.items.map((item, idx) => (
+            <View key={idx} style={styles.detailRow}>
+              <Text style={styles.detailQty}>{item.quantity}x</Text>
+              <Text style={styles.detailName}>{item.name}</Text>
+              <Text style={styles.detailPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+            </View>
+          ))}
+          <View style={[styles.detailRow, styles.detailTotalRow]}>
+            <Text style={styles.detailTotalLabel}>Total</Text>
+            <Text style={styles.detailTotalValue}>${order.total.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        <View style={{ height: 120 }} />
+      </ScrollView>
+
+      {/* Bottom actions */}
       <View style={[styles.bottomActions, { paddingBottom: insets.bottom + 16 }]}>
+        {order.status === 'PENDING' && (
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={handleCancel}
+            disabled={cancelling}
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color={colors.error} />
+            ) : (
+              <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
+            )}
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.homeBtn}
           onPress={() => navigation.navigate('Main')}
@@ -275,6 +364,46 @@ const styles = StyleSheet.create({
     color: colors['ink-secondary'],
     marginTop: spacing.xs,
   },
+  // Driver card
+  driverCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.snow,
+    borderRadius: radius.md,
+    gap: spacing.md,
+  },
+  driverAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.agave,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverInfo: {
+    flex: 1,
+  },
+  driverName: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  driverLabel: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 13,
+    color: colors['ink-muted'],
+  },
+  driverCallBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors['agave-light'],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   // Steps
   stepsContainer: {
     paddingHorizontal: spacing['2xl'],
@@ -331,7 +460,6 @@ const styles = StyleSheet.create({
   },
   // Details
   detailsSection: {
-    flex: 1,
     borderTopWidth: 1,
     borderTopColor: colors.cloud,
     paddingHorizontal: spacing.lg,
@@ -385,6 +513,20 @@ const styles = StyleSheet.create({
   bottomActions: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+    gap: spacing.sm,
+  },
+  cancelBtn: {
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.error,
   },
   homeBtn: {
     height: 48,

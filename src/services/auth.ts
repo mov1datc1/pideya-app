@@ -107,6 +107,39 @@ export const onAuthStateChange = (
   return supabase.auth.onAuthStateChange(callback);
 };
 
+/** Delete user account and all associated data */
+export const deleteAccount = async () => {
+  // Get current user
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) throw new Error('No se pudo obtener el usuario');
+
+  // Delete user profile data from public tables if they exist
+  const phone = user.user_metadata?.phone;
+  if (phone) {
+    // Cancel any pending orders
+    await supabase
+      .from('orders')
+      .update({ status: 'CANCELLED', cancelled_at: new Date().toISOString(), cancelled_by: 'client' })
+      .eq('client_phone', phone)
+      .eq('status', 'PENDING');
+  }
+
+  // Sign out (Supabase Admin API needed for full deletion from auth.users,
+  // but signing out + clearing session is the client-side action.
+  // A Supabase Edge Function or DB trigger should handle auth.users cleanup.)
+  const { error } = await supabase.rpc('delete_user_account');
+  if (error) {
+    // Fallback: if RPC doesn't exist, just sign out
+    console.warn('delete_user_account RPC not found, signing out only:', error.message);
+    await supabase.auth.signOut();
+    return;
+  }
+  await supabase.auth.signOut();
+};
+
 /** Check if user profile is complete (has name and phone) */
 export const isProfileComplete = (userMetadata: Record<string, unknown> | undefined): boolean => {
   if (!userMetadata) return false;

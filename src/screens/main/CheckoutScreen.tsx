@@ -56,6 +56,8 @@ export const CheckoutScreen: React.FC = () => {
   const [addressText, setAddressText] = useState(cart.delivery_address_text);
   const [locationNote, setLocationNote] = useState(cart.delivery_location_note);
   const [addressLabel, setAddressLabel] = useState('');
+  const [addressLat, setAddressLat] = useState(cart.delivery_lat || 0);
+  const [addressLng, setAddressLng] = useState(cart.delivery_lng || 0);
   const [showNewAddress, setShowNewAddress] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showOrderItems, setShowOrderItems] = useState(false);
@@ -80,7 +82,22 @@ export const CheckoutScreen: React.FC = () => {
     setSelectedAddressId(addr.id);
     setAddressText(addr.address_text);
     setLocationNote(addr.reference || '');
+    setAddressLat(addr.latitude);
+    setAddressLng(addr.longitude);
     setShowNewAddress(false);
+  };
+
+  const openMapPicker = () => {
+    navigation.navigate('AddressPicker', {
+      latitude: addressLat,
+      longitude: addressLng,
+      currentAddress: addressText,
+      onSelect: (data: { address: string; latitude: number; longitude: number }) => {
+        setAddressText(data.address);
+        setAddressLat(data.latitude);
+        setAddressLng(data.longitude);
+      },
+    });
   };
 
   const handleSaveAddress = async () => {
@@ -90,10 +107,10 @@ export const CheckoutScreen: React.FC = () => {
       label: addressLabel.trim() || 'Mi direccion',
       address_text: addressText.trim(),
       reference: locationNote.trim() || null,
-      latitude: 0,
-      longitude: 0,
+      latitude: addressLat,
+      longitude: addressLng,
       is_default: savedAddresses.length === 0,
-      is_pin_location: false,
+      is_pin_location: addressLat !== 0,
     });
     setSavedAddresses((prev) => [...prev, newAddr]);
     setSelectedAddressId(newAddr.id);
@@ -144,7 +161,7 @@ export const CheckoutScreen: React.FC = () => {
       return;
     }
 
-    setDeliveryAddress(addressText, cart.delivery_lat, cart.delivery_lng, locationNote);
+    setDeliveryAddress(addressText, addressLat, addressLng, locationNote);
 
     setSubmitting(true);
     try {
@@ -163,8 +180,8 @@ export const CheckoutScreen: React.FC = () => {
         restaurant_id: cart.restaurant_id,
         client_name: profile?.full_name || 'Cliente',
         client_phone: profile?.phone || '',
-        client_lat: cart.delivery_lat || 0,
-        client_lng: cart.delivery_lng || 0,
+        client_lat: addressLat || 0,
+        client_lng: addressLng || 0,
         client_location_note: locationNote || undefined,
         items: orderItems,
         subtotal: itemsTotal,
@@ -204,26 +221,34 @@ export const CheckoutScreen: React.FC = () => {
         <View style={styles.section}>
           {/* Selected address display (UberEats style) */}
           {selectedAddress && !showNewAddress ? (
-            <TouchableOpacity
-              style={styles.addressCard}
-              onPress={() => setShowNewAddress(true)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.addressIconCircle}>
-                <Ionicons
-                  name={getAddressIcon(selectedAddress.label) as keyof typeof Ionicons.glyphMap}
-                  size={20}
-                  color={colors.agave}
-                />
-              </View>
-              <View style={styles.addressCardInfo}>
-                <Text style={styles.addressCardLabel}>{selectedAddress.label}</Text>
-                <Text style={styles.addressCardText} numberOfLines={2}>
-                  {selectedAddress.address_text}
+            <View>
+              <TouchableOpacity
+                style={styles.addressCard}
+                onPress={() => setShowNewAddress(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.addressIconCircle}>
+                  <Ionicons
+                    name={getAddressIcon(selectedAddress.label) as keyof typeof Ionicons.glyphMap}
+                    size={20}
+                    color={colors.agave}
+                  />
+                </View>
+                <View style={styles.addressCardInfo}>
+                  <Text style={styles.addressCardLabel}>{selectedAddress.label}</Text>
+                  <Text style={styles.addressCardText} numberOfLines={2}>
+                    {selectedAddress.address_text}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.mapMiniBtn} onPress={openMapPicker} activeOpacity={0.7}>
+                <Ionicons name="map-outline" size={16} color={colors.agave} />
+                <Text style={styles.mapMiniBtnText}>
+                  {addressLat !== 0 ? 'Cambiar en mapa' : 'Marcar en mapa'}
                 </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
           ) : null}
 
           {/* Delivery instructions */}
@@ -283,6 +308,20 @@ export const CheckoutScreen: React.FC = () => {
                   ))}
                 </View>
               )}
+
+              {/* Map picker button */}
+              <TouchableOpacity style={styles.mapPickerBtn} onPress={openMapPicker} activeOpacity={0.8}>
+                <View style={styles.mapPickerIcon}>
+                  <Ionicons name="map" size={22} color={colors.agave} />
+                </View>
+                <View style={styles.mapPickerInfo}>
+                  <Text style={styles.mapPickerTitle}>Seleccionar en mapa</Text>
+                  <Text style={styles.mapPickerHint}>
+                    {addressLat !== 0 ? 'Ubicacion seleccionada' : 'Toca para marcar tu ubicacion exacta'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
+              </TouchableOpacity>
 
               {/* New address form */}
               <View style={styles.addressInputs}>
@@ -647,6 +686,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors['ink-muted'],
     marginTop: 1,
+  },
+  // ── Map picker ──
+  mapPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors['agave-light'],
+    borderWidth: 1.5,
+    borderColor: colors.agave,
+    borderStyle: 'dashed',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  mapPickerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mapPickerInfo: {
+    flex: 1,
+  },
+  mapPickerTitle: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors['agave-dark'],
+  },
+  mapPickerHint: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: colors.agave,
+    marginTop: 1,
+  },
+  mapMiniBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingLeft: 52, // align with address text
+  },
+  mapMiniBtnText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 13,
+    color: colors.agave,
   },
   // ── Saved addresses ──
   savedAddresses: {
