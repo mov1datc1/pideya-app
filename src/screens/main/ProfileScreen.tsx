@@ -13,6 +13,7 @@ import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { deleteAccount } from '../../services/auth';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 
 interface MenuItemRowProps {
@@ -33,12 +34,51 @@ const MenuItemRow = ({ icon, label, onPress, color = colors.ink, showChevron = t
 
 export const ProfileScreen: React.FC = () => {
   const { profile, user, isAuthenticated, signOut, loading } = useAuth();
+  const [deleting, setDeleting] = React.useState(false);
 
   const handleSignOut = () => {
     Alert.alert('Cerrar sesion', 'Seguro que quieres salir?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Salir', style: 'destructive', onPress: signOut },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Eliminar cuenta',
+      'Esta accion es permanente. Se cancelaran tus pedidos pendientes y se eliminaran todos tus datos. Seguro que deseas continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar cuenta',
+          style: 'destructive',
+          onPress: () => {
+            // Double confirmation
+            Alert.alert(
+              'Confirmar eliminacion',
+              'Escribe ELIMINAR mentalmente y confirma. No podras recuperar tu cuenta.',
+              [
+                { text: 'No, conservar cuenta', style: 'cancel' },
+                {
+                  text: 'Si, eliminar todo',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setDeleting(true);
+                    try {
+                      await deleteAccount();
+                    } catch {
+                      Alert.alert('Error', 'No se pudo eliminar la cuenta. Intenta de nuevo.');
+                    } finally {
+                      setDeleting(false);
+                    }
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   const showTerms = () => {
@@ -86,8 +126,8 @@ export const ProfileScreen: React.FC = () => {
           />
           <MenuItemRow
             icon="shield-checkmark-outline"
-            label="Privacidad"
-            onPress={() => Alert.alert('Privacidad', 'No vendemos ni compartimos tus datos personales con terceros. Solo usamos tu informacion para procesar pedidos.')}
+            label="Aviso de privacidad"
+            onPress={() => Linking.openURL('https://pide-ya.app/aviso-privacidad')}
           />
           <MenuItemRow
             icon="help-circle-outline"
@@ -101,6 +141,13 @@ export const ProfileScreen: React.FC = () => {
             icon="log-out-outline"
             label="Cerrar sesion"
             onPress={handleSignOut}
+            color={colors.error}
+            showChevron={false}
+          />
+          <MenuItemRow
+            icon="trash-outline"
+            label={deleting ? 'Eliminando...' : 'Eliminar cuenta'}
+            onPress={handleDeleteAccount}
             color={colors.error}
             showChevron={false}
           />
