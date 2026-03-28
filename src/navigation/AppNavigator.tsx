@@ -7,6 +7,7 @@ import { RestaurantDetailScreen } from '../screens/main/RestaurantDetailScreen';
 import { CartScreen } from '../screens/main/CartScreen';
 import { CheckoutScreen } from '../screens/main/CheckoutScreen';
 import { OrderStatusScreen } from '../screens/main/OrderStatusScreen';
+import { AddressPickerScreen } from '../screens/main/AddressPickerScreen';
 import { CompleteProfileScreen } from '../screens/auth/CompleteProfileScreen';
 import { useAuth } from '../hooks/useAuth';
 import { RootStackParamList } from '../types/navigation';
@@ -38,6 +39,11 @@ export const AppNavigator: React.FC = () => {
               <RootStack.Screen name="Cart" component={CartScreen} />
               <RootStack.Screen name="Checkout" component={CheckoutScreen} />
               <RootStack.Screen name="OrderStatus" component={OrderStatusScreen} />
+              <RootStack.Screen
+                name="AddressPicker"
+                component={AddressPickerScreen}
+                options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }}
+              />
             </>
           ) : (
             <RootStack.Screen name="Auth" component={AuthStack} />
