@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { SafeMapView, SafeMarker } from '../../components/SafeMapView';
 import * as ordersService from '../../services/orders';
 import * as deliveryService from '../../services/delivery';
 import * as locationService from '../../services/location';
@@ -34,7 +34,7 @@ export default function ActiveDeliveryScreen({ route, navigation }: Props) {
     lat: number;
     lng: number;
   } | null>(null);
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Pulse animation for driver marker
@@ -219,9 +219,9 @@ export default function ActiveDeliveryScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       {/* Full-screen map */}
-      <MapView
+      <SafeMapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
+
         style={styles.map}
         initialRegion={{
           latitude: order.client_lat,
@@ -231,7 +231,7 @@ export default function ActiveDeliveryScreen({ route, navigation }: Props) {
         }}
       >
         {/* Client marker */}
-        <Marker
+        <SafeMarker
           coordinate={{
             latitude: order.client_lat,
             longitude: order.client_lng,
@@ -242,11 +242,11 @@ export default function ActiveDeliveryScreen({ route, navigation }: Props) {
           <View style={styles.markerClient}>
             <Ionicons name="home" size={18} color={colors.white} />
           </View>
-        </Marker>
+        </SafeMarker>
 
         {/* Restaurant marker */}
         {restaurant?.lat && restaurant?.lng && (
-          <Marker
+          <SafeMarker
             coordinate={{
               latitude: restaurant.lat,
               longitude: restaurant.lng,
@@ -256,12 +256,12 @@ export default function ActiveDeliveryScreen({ route, navigation }: Props) {
             <View style={styles.markerRestaurant}>
               <Ionicons name="restaurant" size={16} color={colors.white} />
             </View>
-          </Marker>
+          </SafeMarker>
         )}
 
         {/* Driver marker */}
         {driverCoords && (
-          <Marker
+          <SafeMarker
             coordinate={{
               latitude: driverCoords.lat,
               longitude: driverCoords.lng,
@@ -280,9 +280,9 @@ export default function ActiveDeliveryScreen({ route, navigation }: Props) {
                 <Ionicons name="bicycle" size={18} color={colors.white} />
               </View>
             </View>
-          </Marker>
+          </SafeMarker>
         )}
-      </MapView>
+      </SafeMapView>
 
       {/* Status pill overlay */}
       <View style={styles.statusPill}>

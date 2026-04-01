@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { SafeMapView, SafeMarker } from '../../components/SafeMapView';
 import * as ordersService from '../../services/orders';
 import * as deliveryService from '../../services/delivery';
 import { useAuth } from '../../context/AuthContext';
@@ -108,8 +108,8 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Map preview */}
         <View style={styles.mapContainer}>
-          <MapView
-            provider={PROVIDER_GOOGLE}
+          <SafeMapView
+
             style={styles.map}
             initialRegion={{
               latitude: order.client_lat,
@@ -120,7 +120,7 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
             scrollEnabled={false}
             zoomEnabled={false}
           >
-            <Marker
+            <SafeMarker
               coordinate={{
                 latitude: order.client_lat,
                 longitude: order.client_lng,
@@ -130,10 +130,10 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
               <View style={styles.markerClient}>
                 <Ionicons name="home" size={16} color={colors.white} />
               </View>
-            </Marker>
+            </SafeMarker>
 
             {restaurant?.lat && restaurant?.lng && (
-              <Marker
+              <SafeMarker
                 coordinate={{
                   latitude: restaurant.lat,
                   longitude: restaurant.lng,
@@ -143,9 +143,9 @@ export default function OrderDetailScreen({ route, navigation }: Props) {
                 <View style={styles.markerRestaurant}>
                   <Ionicons name="restaurant" size={16} color={colors.white} />
                 </View>
-              </Marker>
+              </SafeMarker>
             )}
-          </MapView>
+          </SafeMapView>
 
           {/* Overlay distance badge */}
           {distance !== null && (
