@@ -35,9 +35,11 @@ export default function TokenLoginScreen() {
 
     setLoading(true);
     try {
+      console.log('[LOGIN] Attempting with token:', trimmed.substring(0, 8) + '...');
       await loginWithToken(trimmed);
-      // AuthContext handles navigation via needsPhoneVerify or isAuthenticated
+      console.log('[LOGIN] Success — auth context should navigate');
     } catch (err: any) {
+      console.log('[LOGIN] Error:', err.message);
       Alert.alert('Error', err.message || 'Token inválido');
     } finally {
       setLoading(false);

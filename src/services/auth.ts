@@ -19,9 +19,14 @@ export interface DriverSessionResult {
 export const loginWithToken = async (
   token: string,
 ): Promise<DriverSessionResult> => {
+  console.log('[AUTH] Calling driver_get_session...');
+
   const { data, error } = await supabase.rpc('driver_get_session', {
     p_access_token: token,
   });
+
+  console.log('[AUTH] RPC response - error:', error);
+  console.log('[AUTH] RPC response - data:', JSON.stringify(data, null, 2));
 
   if (error) throw new Error(error.message);
   if (!data || (Array.isArray(data) && data.length === 0)) {
@@ -29,13 +34,14 @@ export const loginWithToken = async (
   }
 
   const row = Array.isArray(data) ? data[0] : data;
+  console.log('[AUTH] Parsed row keys:', Object.keys(row));
 
   const driver: DriverProfile = {
-    id: row.driver_id,
-    restaurant_id: row.restaurant_id,
+    id: row.driver_id ?? row.id ?? '',
+    restaurant_id: row.restaurant_id ?? '',
     user_id: row.user_id ?? null,
-    name: row.driver_name,
-    phone: row.driver_phone,
+    name: row.driver_name ?? row.name ?? '',
+    phone: row.driver_phone ?? row.phone ?? '',
     vehicle_label: row.vehicle_label ?? null,
     notes: null,
     is_active: true,
@@ -46,15 +52,21 @@ export const loginWithToken = async (
   };
 
   const restaurant: Restaurant = {
-    id: row.restaurant_id,
-    name: row.restaurant_name,
+    id: row.restaurant_id ?? '',
+    name: row.restaurant_name ?? '',
     phone: row.restaurant_phone ?? '',
     address: row.restaurant_address ?? null,
     lat: row.restaurant_lat ?? null,
     lng: row.restaurant_lng ?? null,
-    logo_url: row.restaurant_logo ?? null,
+    logo_url: row.restaurant_logo ?? row.logo_url ?? null,
   };
 
+  console.log('[AUTH] Driver parsed:', driver.id, driver.name);
+  console.log('[AUTH] Restaurant parsed:', restaurant.id, restaurant.name);
+
+  if (!driver.id) {
+    throw new Error('No se pudo obtener el ID del repartidor. Respuesta: ' + JSON.stringify(row));
+  }
   // Persist token and profile locally
   await AsyncStorage.setItem(DRIVER_TOKEN_KEY, token);
   await AsyncStorage.setItem(
