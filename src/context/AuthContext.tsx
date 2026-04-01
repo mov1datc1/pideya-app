@@ -42,18 +42,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       try {
         const session = await authService.restoreSession();
         if (session) {
-          const needsVerify = !session.driver.user_id;
           setState({
             driver: session.driver,
             restaurant: session.restaurant,
             isLoading: false,
-            isAuthenticated: !needsVerify,
-            needsPhoneVerify: needsVerify,
+            isAuthenticated: true,
+            needsPhoneVerify: false,
           });
 
-          if (!needsVerify) {
-            setupPushNotifications(session.driver.id).catch(console.warn);
-          }
+          setupPushNotifications(session.driver.id).catch(console.warn);
         } else {
           setState((s) => ({ ...s, isLoading: false }));
         }
@@ -65,20 +62,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const loginWithToken = async (token: string) => {
     const session = await authService.loginWithToken(token);
-    const needsVerify = !session.driver.user_id;
 
     setState({
       driver: session.driver,
       restaurant: session.restaurant,
       isLoading: false,
-      isAuthenticated: !needsVerify,
-      needsPhoneVerify: needsVerify,
+      isAuthenticated: true,
+      needsPhoneVerify: false,
     });
 
-    // If already verified (has user_id), setup push
-    if (!needsVerify) {
-      setupPushNotifications(session.driver.id).catch(console.warn);
-    }
+    setupPushNotifications(session.driver.id).catch(console.warn);
   };
 
   const completePhoneVerify = () => {
