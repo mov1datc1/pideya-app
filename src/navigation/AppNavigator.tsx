@@ -77,20 +77,15 @@ export default function AppNavigator() {
               component={OrderDetailScreen}
               options={{
                 headerShown: true,
-                headerTitle: 'Detalle del pedido',
+                title: 'Detalle del pedido',
                 headerTintColor: colors.textPrimary,
-                headerStyle: { backgroundColor: colors.background },
               }}
             />
             <Stack.Screen
               name="ActiveDelivery"
               component={ActiveDeliveryScreen}
               options={{
-                headerShown: true,
-                headerTitle: 'Entrega activa',
-                headerTintColor: colors.white,
-                headerTransparent: true,
-                headerStyle: { backgroundColor: 'transparent' },
+                headerShown: false,
               }}
             />
           </>

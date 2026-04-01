@@ -40,7 +40,7 @@ export default function MainTabs() {
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: '600' as const,
         },
         tabBarIcon: ({ focused, color, size }) => {
           const cfg = tabConfig[route.name];

@@ -21,9 +21,8 @@ export default function AuthStack() {
         component={PhoneVerifyScreen}
         options={{
           headerShown: true,
-          headerTitle: 'Verificar teléfono',
+          title: 'Verificar teléfono',
           headerTintColor: colors.textPrimary,
-          headerStyle: { backgroundColor: colors.background },
         }}
       />
     </Stack.Navigator>
