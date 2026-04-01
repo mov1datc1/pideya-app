@@ -20,7 +20,7 @@ export const loginWithToken = async (
   token: string,
 ): Promise<DriverSessionResult> => {
   const { data, error } = await supabase.rpc('driver_get_session', {
-    p_token: token,
+    p_access_token: token,
   });
 
   if (error) throw new Error(error.message);
