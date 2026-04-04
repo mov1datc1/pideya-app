@@ -3,9 +3,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DRIVER_TOKEN_KEY = '@pideya_driver_token';
 
-/**
- * Helper para obtener el token guardado.
- */
 const getToken = async (): Promise<string> => {
   const token = await AsyncStorage.getItem(DRIVER_TOKEN_KEY);
   if (!token) throw new Error('No hay sesión activa');
@@ -14,12 +11,12 @@ const getToken = async (): Promise<string> => {
 
 /**
  * Tomar un pedido: cambia status a ON_THE_WAY.
- * Usa el RPC existente driver_take_order.
+ * Valida regla de 1 pedido activo via RPC.
  */
 export const takeOrder = async (orderId: string): Promise<void> => {
   const token = await getToken();
 
-  const { error } = await supabase.rpc('driver_take_order', {
+  const { data, error } = await supabase.rpc('driver_take_order', {
     p_access_token: token,
     p_order_id: orderId,
   });
@@ -28,23 +25,35 @@ export const takeOrder = async (orderId: string): Promise<void> => {
 };
 
 /**
- * Marcar pedido como entregado.
+ * Marcar pedido como entregado via RPC.
+ * Limpia current_order_id y retorna pedidos pendientes.
  */
-export const completeDelivery = async (orderId: string): Promise<void> => {
-  const { error } = await supabase
-    .from('orders')
-    .update({
-      status: 'DELIVERED',
-      delivered_at: new Date().toISOString(),
-    })
-    .eq('id', orderId);
+export const completeDelivery = async (
+  orderId: string,
+): Promise<{ pending_orders: number }> => {
+  const token = await getToken();
 
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabase.rpc('driver_complete_delivery', {
+    p_access_token: token,
+    p_order_id: orderId,
+  });
+
+  if (error) {
+    // Fallback: actualizar directo si el RPC no existe aún
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ status: 'DELIVERED', delivered_at: new Date().toISOString() })
+      .eq('id', orderId);
+    if (updateError) throw new Error(updateError.message);
+    return { pending_orders: 0 };
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  return { pending_orders: result?.pending_orders ?? 0 };
 };
 
 /**
  * Actualizar ubicación del repartidor.
- * Usa el RPC existente driver_update_location.
  */
 export const updateDriverLocation = async (params: {
   orderId: string | null;

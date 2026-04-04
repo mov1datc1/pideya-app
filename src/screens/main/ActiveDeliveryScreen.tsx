@@ -175,11 +175,17 @@ export default function ActiveDeliveryScreen({ route, navigation }: Props) {
           onPress: async () => {
             setCompleting(true);
             try {
-              await deliveryService.completeDelivery(order.id);
+              const result = await deliveryService.completeDelivery(order.id);
               await locationService.stopBackgroundTracking();
+
+              const pendingMsg =
+                result.pending_orders > 0
+                  ? `\n\nTienes ${result.pending_orders} pedido${result.pending_orders > 1 ? 's' : ''} más asignado${result.pending_orders > 1 ? 's' : ''}.`
+                  : '';
+
               Alert.alert(
                 'Entrega completada',
-                `Pedido #${order.order_number} entregado exitosamente.`,
+                `Pedido #${order.order_number} entregado exitosamente.${pendingMsg}`,
                 [{ text: 'OK', onPress: () => navigation.popToTop() }],
               );
             } catch (err: any) {
