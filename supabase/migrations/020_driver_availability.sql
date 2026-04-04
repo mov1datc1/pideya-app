@@ -60,6 +60,7 @@ $$;
 
 -- 3. Modificar driver_take_order para validar regla de 1 pedido activo
 --    y setear current_order_id
+DROP FUNCTION IF EXISTS public.driver_take_order(TEXT, UUID);
 CREATE OR REPLACE FUNCTION public.driver_take_order(
   p_access_token TEXT,
   p_order_id UUID
