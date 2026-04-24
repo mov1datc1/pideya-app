@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Image,
   ScrollView,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -19,6 +20,7 @@ import { LogoLockup } from '../../components/branding/LogoLockup';
 import { Card } from '../../components/ui/Card';
 import { useRestaurants } from '../../hooks/useRestaurants';
 import { useAuth } from '../../hooks/useAuth';
+import { useOrders } from '../../hooks/useOrders';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
 import type { Restaurant, FoodType } from '../../types/database';
@@ -45,6 +47,18 @@ export const HomeScreen: React.FC = () => {
   const { restaurants, loading, error, search } = useRestaurants();
   const [selectedType, setSelectedType] = useState<FoodType | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const { activeOrders } = useOrders(profile?.phone ?? '');
+  const activeOrder = activeOrders[0] ?? null;
+
+  // Banner animation
+  const bannerAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(bannerAnim, {
+      toValue: activeOrder ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [activeOrder]);
 
   const filteredRestaurants = useMemo(
     () =>
@@ -241,13 +255,53 @@ export const HomeScreen: React.FC = () => {
           data={filteredRestaurants}
           renderItem={renderRestaurant}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[
+            styles.list,
+            activeOrder && { paddingBottom: spacing['4xl'] + 70 },
+          ]}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={ListHeader}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No hay restaurantes disponibles</Text>
           }
         />
+      )}
+
+      {/* Active order floating banner */}
+      {activeOrder && (
+        <Animated.View
+          style={[
+            styles.activeBanner,
+            {
+              transform: [{
+                translateY: bannerAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [80, 0],
+                }),
+              }],
+              opacity: bannerAnim,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.activeBannerInner}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('OrderStatus', { orderId: activeOrder.id })}
+          >
+            <View style={styles.activeBannerPulse} />
+            <View style={styles.activeBannerContent}>
+              <Text style={styles.activeBannerTitle}>
+                {activeOrder.reference_code} en curso
+              </Text>
+              <Text style={styles.activeBannerStatus}>
+                {activeOrder.status === 'PENDING' ? 'Esperando confirmacion' :
+                  activeOrder.status === 'ACCEPTED' ? 'Preparando tu pedido' :
+                    'En camino'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.white} />
+          </TouchableOpacity>
+        </Animated.View>
       )}
     </ScreenWrapper>
   );
@@ -456,5 +510,48 @@ const styles = StyleSheet.create({
     color: colors['ink-muted'],
     textAlign: 'center',
     marginTop: spacing['2xl'],
+  },
+  // Active order banner
+  activeBanner: {
+    position: 'absolute',
+    bottom: spacing.md,
+    left: spacing.md,
+    right: spacing.md,
+  },
+  activeBannerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.agave,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    gap: spacing.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  activeBannerPulse: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#4ADE80',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  activeBannerContent: {
+    flex: 1,
+  },
+  activeBannerTitle: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 14,
+    color: colors.white,
+  },
+  activeBannerStatus: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 1,
   },
 });

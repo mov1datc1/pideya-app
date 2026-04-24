@@ -70,9 +70,26 @@ export const OrderStatusScreen: React.FC = () => {
   }, [orderId]);
 
   const handleCancel = () => {
+    const paymentMethod = order!.payment_method;
+    const isAfterPending = order!.status !== 'PENDING';
+
+    // Cash + already accepted = can't cancel
+    if (paymentMethod === 'cash' && isAfterPending) {
+      Alert.alert(
+        'No se puede cancelar',
+        'Los pedidos con pago en efectivo no pueden cancelarse despues de ser aceptados por el restaurante.',
+      );
+      return;
+    }
+
+    // Card + after accepted = 30% penalty warning
+    const cardWarning = paymentMethod === 'card' && isAfterPending
+      ? '\n\nSe aplicara un cargo del 30% del costo del pedido (sin envio).'
+      : '';
+
     Alert.alert(
       'Cancelar pedido',
-      'Seguro que quieres cancelar este pedido?',
+      `Seguro que quieres cancelar este pedido?${cardWarning}`,
       [
         { text: 'No', style: 'cancel' },
         {
@@ -84,7 +101,7 @@ export const OrderStatusScreen: React.FC = () => {
               const updated = await cancelOrder(orderId);
               setOrder(updated);
             } catch {
-              Alert.alert('Error', 'No se pudo cancelar el pedido. Es posible que ya fue aceptado.');
+              Alert.alert('Error', 'No se pudo cancelar el pedido.');
             } finally {
               setCancelling(false);
             }
@@ -125,7 +142,7 @@ export const OrderStatusScreen: React.FC = () => {
         <TouchableOpacity onPress={() => navigation.navigate('Main')}>
           <Ionicons name="close" size={24} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pedido #{order.order_number}</Text>
+        <Text style={styles.headerTitle}>{order.reference_code}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -183,8 +200,8 @@ export const OrderStatusScreen: React.FC = () => {
           />
         )}
 
-        {/* Driver info card */}
-        {order.status === 'ON_THE_WAY' && order.delivery_driver_name && (
+        {/* Driver info card — show for both ACCEPTED and ON_THE_WAY */}
+        {(order.status === 'ACCEPTED' || order.status === 'ON_THE_WAY') && order.delivery_driver_name && (
           <View style={styles.driverCard}>
             <View style={styles.driverAvatar}>
               <Ionicons name="person" size={24} color={colors.white} />
@@ -266,19 +283,31 @@ export const OrderStatusScreen: React.FC = () => {
 
       {/* Bottom actions */}
       <View style={[styles.bottomActions, { paddingBottom: insets.bottom + 16 }]}>
-        {order.status === 'PENDING' && (
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={handleCancel}
-            disabled={cancelling}
-          >
-            {cancelling ? (
-              <ActivityIndicator size="small" color={colors.error} />
-            ) : (
-              <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
-            )}
-          </TouchableOpacity>
-        )}
+        {/* Cancel button with smart payment logic */}
+        {(() => {
+          if (isRejected || isCancelled || isDelivered) return null;
+          const paymentMethod = order.payment_method;
+          // Cash: only PENDING can cancel
+          if (paymentMethod === 'cash' && order.status !== 'PENDING') return null;
+          // Otherwise show cancel for all active states
+          return (
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={handleCancel}
+              disabled={cancelling}
+            >
+              {cancelling ? (
+                <ActivityIndicator size="small" color={colors.error} />
+              ) : (
+                <Text style={styles.cancelBtnText}>
+                  {order.status === 'PENDING'
+                    ? 'Cancelar pedido'
+                    : 'Cancelar pedido (con cargo)'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })()}
         <TouchableOpacity
           style={styles.homeBtn}
           onPress={() => navigation.navigate('Main')}

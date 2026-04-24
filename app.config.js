@@ -16,6 +16,7 @@ module.exports = {
       resizeMode: 'contain',
       backgroundColor: '#2D8B7A',
     },
+    scheme: 'pideya',
     plugins: [
       [
         'expo-location',
@@ -26,6 +27,7 @@ module.exports = {
             'Pide ya necesita tu ubicacion para mostrarte restaurantes cercanos y entregar tu pedido.',
         },
       ],
+      'expo-web-browser',
     ],
     ios: {
       supportsTablet: false,

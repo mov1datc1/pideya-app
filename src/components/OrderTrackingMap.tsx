@@ -21,6 +21,8 @@ interface Props {
   driverName?: string | null;
   /** Order status for conditional display */
   status: string;
+  /** If true, map is large and interactive (scroll/zoom enabled) */
+  interactive?: boolean;
 }
 
 /** Custom marker view */
@@ -131,6 +133,7 @@ export const OrderTrackingMap: React.FC<Props> = ({
   driverLng,
   driverName,
   status,
+  interactive = false,
 }) => {
   const mapRef = useRef<MapView>(null);
 
@@ -186,15 +189,18 @@ export const OrderTrackingMap: React.FC<Props> = ({
     longitudeDelta: 0.02,
   };
 
-  return (
-    <View style={styles.container}>
+    
+    const mapHeight = interactive ? SCREEN_W * 0.75 : MAP_HEIGHT;
+
+    return (
+    <View style={[styles.container, interactive && styles.containerInteractive, { height: mapHeight }]}>
       <MapView
         ref={mapRef}
         style={styles.map}
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         initialRegion={center}
-        scrollEnabled={false}
-        zoomEnabled={false}
+        scrollEnabled={interactive}
+        zoomEnabled={interactive}
         pitchEnabled={false}
         rotateEnabled={false}
         showsUserLocation={false}
@@ -258,6 +264,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
+  },
+  containerInteractive: {
+    marginHorizontal: 0,
+    borderRadius: radius.md,
+    marginBottom: 0,
   },
   map: {
     ...StyleSheet.absoluteFillObject,

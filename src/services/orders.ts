@@ -12,6 +12,7 @@ interface CreateOrderInput {
   subtotal: number;
   delivery_amount: number;
   total: number;
+  payment_method?: string;
 }
 
 export const createOrder = async (input: CreateOrderInput) => {
@@ -64,8 +65,29 @@ export const getActiveOrders = async (clientPhone: string) => {
   return data as (Order & { restaurants: { name: string; logo_url: string | null } })[];
 };
 
-/** Cancelar pedido (solo si aun esta PENDING) */
+/** Cancelar pedido.
+ * PENDING: any payment method can cancel.
+ * ACCEPTED/ON_THE_WAY: only card payments can cancel (30% fee applied server-side).
+ */
 export const cancelOrder = async (orderId: string) => {
+  // First get current order to check status/payment
+  const { data: current } = await supabase
+    .from('orders')
+    .select('status, payment_method')
+    .eq('id', orderId)
+    .single();
+
+  if (!current) throw new Error('Pedido no encontrado');
+
+  const canCancel =
+    current.status === 'PENDING' ||
+    (current.payment_method === 'card' &&
+      ['ACCEPTED', 'ON_THE_WAY'].includes(current.status));
+
+  if (!canCancel) {
+    throw new Error('Este pedido no puede cancelarse en este estado.');
+  }
+
   const { data, error } = await supabase
     .from('orders')
     .update({
@@ -74,7 +96,6 @@ export const cancelOrder = async (orderId: string) => {
       cancelled_by: 'client',
     })
     .eq('id', orderId)
-    .eq('status', 'PENDING')
     .select()
     .single();
   if (error) throw error;

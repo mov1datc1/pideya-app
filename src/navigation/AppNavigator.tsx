@@ -46,7 +46,7 @@ export const AppNavigator: React.FC = () => {
               />
             </>
           ) : (
-            <RootStack.Screen name="Auth" component={AuthStack} />
+            <RootStack.Screen name="CompleteProfile" component={CompleteProfileScreen} />
           )
         ) : (
           <RootStack.Screen name="Auth" component={AuthStack} />

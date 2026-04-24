@@ -104,6 +104,7 @@ export interface OrderItemJSON {
 export interface Order {
   id: string;
   order_number: number;
+  reference_code: string; // PY-XXXXXX unique identifier
   restaurant_id: string;
   client_name: string | null;
   client_phone: string | null;
@@ -116,9 +117,11 @@ export interface Order {
   commission_amount: number | null; // migration 011
   delivery_amount: number; // migration 012
   status: OrderStatus;
+  payment_method: string; // cash | card | oxxo
   rejection_reason: string | null;
   cancelled_at: string | null;
   cancelled_by: string | null;
+  client_user_id: string | null;
   // driver fields (migration 015)
   delivery_driver_id: string | null;
   delivery_driver_name: string | null;

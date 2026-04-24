@@ -1,5 +1,77 @@
 import { supabase } from './supabase';
 import type { UserProfile } from '../types/database';
+import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
+
+/** Sign in with Google via Supabase OAuth + expo-web-browser */
+export const signInWithGoogle = async () => {
+  // Use explicit scheme to ensure redirect works on standalone builds
+  const redirectTo = makeRedirectUri({ scheme: 'pideya', path: 'auth/callback' });
+
+  // Warm up browser for faster opening
+  await WebBrowser.warmUpAsync();
+
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) throw error;
+    if (!data?.url) throw new Error('No se pudo iniciar el login con Google');
+
+    const result = await WebBrowser.openAuthSessionAsync(
+      data.url,
+      redirectTo,
+      { showInRecents: true },
+    );
+
+    if (result.type !== 'success' || !result.url) {
+      throw new Error('Login con Google cancelado');
+    }
+
+    // Extract tokens from the redirect URL
+    // Supabase returns tokens in the URL fragment (#access_token=...&refresh_token=...)
+    const resultUrl = result.url;
+    const hashIdx = resultUrl.indexOf('#');
+    if (hashIdx >= 0) {
+      const fragment = resultUrl.substring(hashIdx + 1);
+      const params = new URLSearchParams(fragment);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
+
+      if (accessToken && refreshToken) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionError) throw sessionError;
+        return sessionData;
+      }
+    }
+
+    // If tokens are in query params (PKCE flow)
+    const queryIdx = resultUrl.indexOf('?');
+    if (queryIdx >= 0) {
+      const queryStr = resultUrl.substring(queryIdx + 1);
+      const queryParams = new URLSearchParams(queryStr.split('#')[0]);
+      const code = queryParams.get('code');
+      if (code) {
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.exchangeCodeForSession(code);
+        if (sessionError) throw sessionError;
+        return sessionData;
+      }
+    }
+
+    throw new Error('No se encontraron credenciales en la respuesta de Google');
+  } finally {
+    await WebBrowser.coolDownAsync();
+  }
+};
 
 /** Send OTP code to email (works for both new and existing users) */
 export const sendEmailOtp = async (email: string) => {
@@ -15,30 +87,41 @@ export const sendEmailOtp = async (email: string) => {
 
 /** Verify the OTP code sent to email.
  *
- * Supabase with `mailer_autoconfirm: true` generates a `recovery_token`
- * (not `email_otp`) when calling `signInWithOtp`, even for brand-new users.
- * The correct `verifyOtp` type for recovery tokens is `'magiclink'`.
- * We try `magiclink` first (most common), then `email` as fallback.
+ * With `mailer_autoconfirm: false`, `signInWithOtp` generates a
+ * `confirmation_token` and the correct verify type is `'email'`.
+ *
+ * We try `'email'` first (handles both confirmation_token and
+ * recovery_token internally in GoTrue), then `'magiclink'` and
+ * `'recovery'` as fallbacks for maximum compatibility.
  */
 export const verifyEmailOtp = async (email: string, token: string) => {
-  // Try magiclink first (matches recovery_token from signInWithOtp)
+  // Primary: type 'email' — GoTrue checks both confirmation_token and recovery_token
   const { data, error } = await supabase.auth.verifyOtp({
-    email,
-    token,
-    type: 'magiclink',
-  });
-
-  if (!error) return data;
-
-  // Fallback: try 'email' type (matches email_otp / confirmation_token)
-  const { data: data2, error: error2 } = await supabase.auth.verifyOtp({
     email,
     token,
     type: 'email',
   });
 
-  if (error2) throw error2;
-  return data2;
+  if (!error) return data;
+
+  // Fallback 1: 'magiclink' (matches recovery_token only)
+  const { data: data2, error: error2 } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: 'magiclink',
+  });
+
+  if (!error2) return data2;
+
+  // Fallback 2: 'recovery' (explicit recovery flow)
+  const { data: data3, error: error3 } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: 'recovery',
+  });
+
+  if (error3) throw error3;
+  return data3;
 };
 
 /** Legacy: sign up with email + password (fallback) */

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { createOrder } from '../../services/orders';
+import * as clientProfileService from '../../services/clientProfile';
 import * as addressService from '../../services/addresses';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
@@ -165,6 +166,19 @@ export const CheckoutScreen: React.FC = () => {
 
     setSubmitting(true);
     try {
+      // Check if user is blocked
+      const phone = profile?.phone || '';
+      if (phone) {
+        const blockStatus = await clientProfileService.checkUserBlocked(phone);
+        if (blockStatus.isBlocked) {
+          Alert.alert(
+            'Cuenta suspendida',
+            'Tu cuenta ha sido suspendida por cancelaciones excesivas. Contacta a soporte para reactivarla.',
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
       const orderItems: OrderItemJSON[] = cart.items.map((item) => ({
         id: item.menu_item.id,
         name: item.menu_item.name,
@@ -187,6 +201,7 @@ export const CheckoutScreen: React.FC = () => {
         subtotal: itemsTotal,
         delivery_amount: deliveryFee,
         total,
+        payment_method: cart.payment_method,
       });
 
       clearCart();

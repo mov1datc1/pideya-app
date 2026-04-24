@@ -101,6 +101,29 @@ export const useAuth = () => {
     }
   }, []);
 
+  // Google OAuth
+  const googleSignIn = useCallback(async () => {
+    setState((s) => ({ ...s, loading: true, error: null }));
+    try {
+      await authService.signInWithGoogle();
+      // Auth state change will handle session update
+    } catch (err: unknown) {
+      const raw = err instanceof Error ? err.message : '';
+      let message = 'Error al iniciar sesion con Google';
+      if (raw.includes('cancelado') || raw.includes('cancel')) {
+        // User cancelled — don't show error
+        setState((s) => ({ ...s, loading: false }));
+        return;
+      } else if (raw) {
+        message = raw;
+      }
+      setState((s) => ({ ...s, error: message, loading: false }));
+      throw err;
+    } finally {
+      setState((s) => ({ ...s, loading: false }));
+    }
+  }, []);
+
   const updateProfile = useCallback(async (data: { full_name?: string; phone?: string; city?: string }) => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
@@ -139,6 +162,7 @@ export const useAuth = () => {
     signUp,
     sendOtp,
     verifyOtp,
+    googleSignIn,
     updateProfile,
     signOut,
     clearError,

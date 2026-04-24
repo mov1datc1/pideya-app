@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Alert,
+  TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -23,7 +24,7 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 const OTP_EMAIL_KEY = '@pideya_otp_pending_email';
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const { sendOtp, loading, error, clearError } = useAuth();
+  const { sendOtp, googleSignIn, loading, error, clearError } = useAuth();
   const [email, setEmail] = useState('');
 
   // If user left the app to check Gmail and the app restarted,
@@ -92,6 +93,26 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.btn}
           />
 
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>o</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Google Sign-In */}
+          <TouchableOpacity
+            style={styles.googleBtn}
+            onPress={googleSignIn}
+            disabled={loading}
+            activeOpacity={0.7}
+          >
+            <View style={styles.googleIconWrap}>
+              <Text style={styles.googleG}>G</Text>
+            </View>
+            <Text style={styles.googleText}>Continuar con Google</Text>
+          </TouchableOpacity>
+
           {/* Legacy login link */}
           <Button
             title="Entrar con contraseña"
@@ -134,5 +155,51 @@ const styles = StyleSheet.create({
   },
   btn: {
     marginTop: spacing.md,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors['ink-hint'],
+    opacity: 0.3,
+  },
+  dividerText: {
+    ...textStyles.caption,
+    color: colors['ink-hint'],
+    marginHorizontal: spacing.md,
+  },
+  googleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#dadce0',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: '#fff',
+  },
+  googleIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  googleG: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4285F4',
+  },
+  googleText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#3c4043',
   },
 });

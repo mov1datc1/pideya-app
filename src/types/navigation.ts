@@ -21,6 +21,7 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   Auth: undefined;
+  CompleteProfile: undefined;
   Main: undefined;
   RestaurantDetail: { restaurantId: string; restaurantName: string; coverUrl?: string };
   Cart: undefined;
