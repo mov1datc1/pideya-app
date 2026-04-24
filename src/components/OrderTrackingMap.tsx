@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, Platform, Dimensions } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, fonts, spacing } from '../theme';
+import { colors, fonts, spacing, radius } from '../theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const MAP_HEIGHT = 220;

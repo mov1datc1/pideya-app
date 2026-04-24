@@ -8,7 +8,9 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
+  AppState,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { Button } from '../../components/ui/Button';
@@ -18,7 +20,8 @@ import { AuthStackParamList } from '../../types/navigation';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'OtpVerify'>;
 
-const CODE_LENGTH = 8;
+const CODE_LENGTH = 6;
+const OTP_EMAIL_KEY = '@pideya_otp_pending_email';
 
 export const OtpVerifyScreen: React.FC<Props> = ({ navigation, route }) => {
   const { email } = route.params;
@@ -26,6 +29,27 @@ export const OtpVerifyScreen: React.FC<Props> = ({ navigation, route }) => {
   const [code, setCode] = useState('');
   const [resendTimer, setResendTimer] = useState(60);
   const inputRef = useRef<TextInput>(null);
+  const appStateRef = useRef(AppState.currentState);
+
+  // Persist email so if user leaves app (e.g. to check Gmail) and
+  // the OS kills the app, LoginScreen can restore navigation here.
+  useEffect(() => {
+    AsyncStorage.setItem(OTP_EMAIL_KEY, email).catch(() => {});
+    return () => {
+      // Clear only when user explicitly navigates away
+    };
+  }, [email]);
+
+  // Re-focus input when app comes back from background
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
+        setTimeout(() => inputRef.current?.focus(), 300);
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, []);
 
   // Countdown for resend
   useEffect(() => {
@@ -47,6 +71,8 @@ export const OtpVerifyScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       await verifyOtp(email, code);
       // Auth state change will handle navigation automatically
+      // Clear persisted email on success
+      AsyncStorage.removeItem(OTP_EMAIL_KEY).catch(() => {});
     } catch {
       // error handled in hook
     }
@@ -226,8 +252,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   codeBox: {
-    width: 38,
-    height: 50,
+    width: 46,
+    height: 54,
     borderRadius: radius.sm,
     borderWidth: 2,
     borderColor: colors.cloud,
@@ -245,7 +271,7 @@ const styles = StyleSheet.create({
   },
   codeDigit: {
     fontFamily: fonts.outfit.bold,
-    fontSize: 20,
+    fontSize: 24,
     color: colors['ink-hint'],
   },
   codeDigitFilled: {

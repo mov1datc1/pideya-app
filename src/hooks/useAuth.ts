@@ -87,7 +87,15 @@ export const useAuth = () => {
     try {
       await authService.verifyEmailOtp(email, token);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Codigo incorrecto o expirado';
+      const raw = err instanceof Error ? err.message : '';
+      let message = 'Codigo incorrecto o expirado';
+      if (raw.toLowerCase().includes('expired')) {
+        message = 'El codigo ya expiro. Toca "Reenviar codigo" para recibir uno nuevo.';
+      } else if (raw.toLowerCase().includes('invalid') || raw.toLowerCase().includes('token')) {
+        message = 'El codigo no es valido. Verifica los 6 digitos que recibiste por email.';
+      } else if (raw) {
+        message = raw;
+      }
       setState((s) => ({ ...s, error: message, loading: false }));
       throw err;
     }

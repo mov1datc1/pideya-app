@@ -2,5 +2,6 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  }
+  },
+  "exclude": ["rancho_eats_App.tsx", "rancho_eats_rebrand.patch", "pideya-driver"]
 }

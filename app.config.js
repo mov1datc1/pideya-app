@@ -54,5 +54,11 @@ module.exports = {
     web: {
       favicon: './assets/favicon.png',
     },
+    extra: {
+      eas: {
+        projectId: 'db0d6965-cc3c-4c5f-bb2e-ef3058b3fde7',
+      },
+    },
+    owner: 'pideya1',
   },
 };

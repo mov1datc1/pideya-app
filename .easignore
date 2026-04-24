@@ -1,4 +1,5 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# EAS Build ignore file — same as .gitignore but INCLUDES .env
+# so that environment variables are available during build
 
 # dependencies
 node_modules/
@@ -30,8 +31,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env
+# NOTE: .env is NOT ignored for EAS builds
+# .env
 .env*.local
 
 # typescript
@@ -41,5 +42,7 @@ yarn-error.*
 /ios
 /android
 
-# Credentials (never commit)
-.credentials.md
+# Other projects inside this repo
+pideya-driver/
+rancho_eats_App.tsx
+rancho_eats_rebrand.patch
