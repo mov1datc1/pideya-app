@@ -13,15 +13,32 @@ export const sendEmailOtp = async (email: string) => {
   return data;
 };
 
-/** Verify the OTP code sent to email */
+/** Verify the OTP code sent to email.
+ *
+ * Supabase with `mailer_autoconfirm: true` generates a `recovery_token`
+ * (not `email_otp`) when calling `signInWithOtp`, even for brand-new users.
+ * The correct `verifyOtp` type for recovery tokens is `'magiclink'`.
+ * We try `magiclink` first (most common), then `email` as fallback.
+ */
 export const verifyEmailOtp = async (email: string, token: string) => {
+  // Try magiclink first (matches recovery_token from signInWithOtp)
   const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: 'magiclink',
+  });
+
+  if (!error) return data;
+
+  // Fallback: try 'email' type (matches email_otp / confirmation_token)
+  const { data: data2, error: error2 } = await supabase.auth.verifyOtp({
     email,
     token,
     type: 'email',
   });
-  if (error) throw error;
-  return data;
+
+  if (error2) throw error2;
+  return data2;
 };
 
 /** Legacy: sign up with email + password (fallback) */
