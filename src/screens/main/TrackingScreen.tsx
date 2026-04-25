@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -61,11 +61,30 @@ export const TrackingScreen: React.FC = () => {
   const { activeOrders, loading: ordersLoading } = useOrders(phone);
 
   const activeOrder = activeOrders[0] ?? null;
-  const { order: trackedOrder, hasDriver, driverLat, driverLng } = useTracking(
-    activeOrder?.id ?? null,
+
+  // Persist the tracked orderId even after order becomes DELIVERED
+  // (activeOrders removes DELIVERED orders, but we still want to track them)
+  const trackedOrderIdRef = useRef<string | null>(null);
+  if (activeOrder?.id) {
+    trackedOrderIdRef.current = activeOrder.id;
+  }
+
+  const { order: trackedOrder, hasDriver, driverLat, driverLng, isDelivered } = useTracking(
+    trackedOrderIdRef.current,
   );
 
   const currentOrder = trackedOrder ?? activeOrder;
+
+  // Clear tracked ID when user has seen the delivered state
+  // (after 30 seconds, reset so empty state shows)
+  React.useEffect(() => {
+    if (isDelivered) {
+      const timer = setTimeout(() => {
+        trackedOrderIdRef.current = null;
+      }, 30_000);
+      return () => clearTimeout(timer);
+    }
+  }, [isDelivered]);
 
   const eta = useMemo(
     () =>

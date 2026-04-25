@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Order } from '../types/database';
+import type { Order, OrderStatus } from '../types/database';
 import * as orderService from '../services/orders';
 import { supabase } from '../services/supabase';
+import { notifyOrderStatusChange } from './useNotifications';
 
-const ACTIVE_STATUSES = ['PENDING', 'ACCEPTED', 'ON_THE_WAY'];
-const POLL_INTERVAL = 10_000; // 10s fallback polling
+const POLL_INTERVAL = 8_000; // 8s fallback polling
 
 export const useOrders = (clientPhone: string) => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -12,6 +12,8 @@ export const useOrders = (clientPhone: string) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track known statuses to detect changes and send notifications
+  const statusMapRef = useRef<Record<string, string>>({});
 
   const fetchAll = useCallback(async () => {
     if (!clientPhone) return;
@@ -33,10 +35,9 @@ export const useOrders = (clientPhone: string) => {
   useEffect(() => {
     fetchAll();
 
-    // Realtime subscription: listen for any changes in orders table
-    // Filter by client_phone to only receive relevant updates
+    // Realtime subscription with unique channel name
     const channel = supabase
-      .channel('orders-realtime')
+      .channel(`client-orders-${clientPhone}`)
       .on(
         'postgres_changes',
         {
@@ -45,20 +46,34 @@ export const useOrders = (clientPhone: string) => {
           table: 'orders',
           filter: `client_phone=eq.${clientPhone}`,
         },
-        () => {
-          // Re-fetch all orders when any change is detected
+        (payload) => {
+          // Send local notification on status change
+          const updated = payload.new as Order;
+          if (updated?.id && updated?.status) {
+            const prevStatus = statusMapRef.current[updated.id];
+            if (prevStatus && prevStatus !== updated.status) {
+              // Status changed! Send notification
+              notifyOrderStatusChange(
+                updated.status as OrderStatus,
+                updated.order_number,
+              );
+            }
+            statusMapRef.current[updated.id] = updated.status;
+          }
+
+          // Re-fetch all orders to update UI
           fetchAll();
         },
       )
       .subscribe();
 
-    // Fallback polling every 10s for active orders
+    // Fallback polling
     pollRef.current = setInterval(() => {
       if (clientPhone) fetchAll();
     }, POLL_INTERVAL);
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [clientPhone, fetchAll]);
