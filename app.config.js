@@ -14,7 +14,7 @@ module.exports = {
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'contain',
-      backgroundColor: '#2D8B7A',
+      backgroundColor: '#FFFFFF',
     },
     scheme: 'pideya',
     plugins: [
@@ -42,7 +42,7 @@ module.exports = {
     },
     android: {
       adaptiveIcon: {
-        backgroundColor: '#2D8B7A',
+        backgroundColor: '#FFFFFF',
         foregroundImage: './assets/adaptive-icon.png',
       },
       package: 'com.pideya.app',
