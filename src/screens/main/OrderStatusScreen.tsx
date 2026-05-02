@@ -26,7 +26,7 @@ type NavType = NativeStackNavigationProp<RootStackParamList>;
 const STATUS_STEPS: { status: OrderStatus; label: string; icon: string }[] = [
   { status: 'PENDING', label: 'Pedido enviado', icon: 'checkmark-circle' },
   { status: 'ACCEPTED', label: 'Restaurante preparando', icon: 'restaurant' },
-  { status: 'ON_THE_WAY', label: 'En camino', icon: 'bicycle' },
+  { status: 'ON_THE_WAY', label: 'En camino', icon: 'navigate' },
   { status: 'DELIVERED', label: 'Entregado', icon: 'flag' },
 ];
 
@@ -188,9 +188,9 @@ export const OrderStatusScreen: React.FC = () => {
         {/* Live tracking map */}
         {showMap && (
           <OrderTrackingMap
-            restaurantLat={null}
-            restaurantLng={null}
-            restaurantName={undefined}
+            restaurantLat={(order as any).restaurants?.lat ?? null}
+            restaurantLng={(order as any).restaurants?.lng ?? null}
+            restaurantName={(order as any).restaurants?.name}
             clientLat={order.client_lat}
             clientLng={order.client_lng}
             driverLat={order.driver_last_lat}

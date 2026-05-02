@@ -31,11 +31,11 @@ export const createOrder = async (input: CreateOrderInput) => {
 export const getOrderById = async (id: string) => {
   const { data, error } = await supabase
     .from('orders')
-    .select('*')
+    .select('*, restaurants(name, lat, lng, logo_url)')
     .eq('id', id)
     .single();
   if (error) throw error;
-  return data as Order;
+  return data as Order & { restaurants?: { name: string; lat: number; lng: number; logo_url: string | null } };
 };
 
 /**

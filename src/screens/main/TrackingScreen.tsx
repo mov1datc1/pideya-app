@@ -28,7 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_ICONS: Record<string, string> = {
   PENDING: 'time-outline',
   ACCEPTED: 'restaurant-outline',
-  ON_THE_WAY: 'bicycle',
+  ON_THE_WAY: 'navigate',
   DELIVERED: 'checkmark-circle',
 };
 
@@ -117,7 +117,7 @@ export const TrackingScreen: React.FC = () => {
     return (
       <ScreenWrapper>
         <View style={styles.center}>
-          <Ionicons name="bicycle-outline" size={48} color={colors['ink-hint']} />
+          <Ionicons name="location-outline" size={48} color={colors['ink-hint']} />
           <Text style={styles.emptyText}>No tienes pedidos activos</Text>
           <Text style={styles.emptySubtext}>Cuando hagas un pedido, veras el rastreo aqui</Text>
         </View>
@@ -145,9 +145,9 @@ export const TrackingScreen: React.FC = () => {
       {/* Live Map — large, interactive */}
       {showMap && (
         <OrderTrackingMap
-          restaurantLat={null}
-          restaurantLng={null}
-          restaurantName={undefined}
+          restaurantLat={(currentOrder as any).restaurants?.lat ?? null}
+          restaurantLng={(currentOrder as any).restaurants?.lng ?? null}
+          restaurantName={(currentOrder as any).restaurants?.name}
           clientLat={currentOrder.client_lat}
           clientLng={currentOrder.client_lng}
           driverLat={driverLat}
@@ -156,14 +156,6 @@ export const TrackingScreen: React.FC = () => {
           status={currentOrder.status}
           interactive
         />
-      )}
-
-      {/* ETA pill */}
-      {eta && currentOrder.status === 'ON_THE_WAY' && (
-        <View style={styles.etaPill}>
-          <Ionicons name="time" size={16} color={colors.agave} />
-          <Text style={styles.etaText}>Llegada estimada: {eta}</Text>
-        </View>
       )}
 
       {/* Driver info card */}

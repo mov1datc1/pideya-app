@@ -26,11 +26,11 @@ interface Props {
   interactive?: boolean;
 }
 
-// ─── Custom Markers (Branding PideYa) ─────────────────────────
+// ─── Custom Markers ───────────────────────────────────────────
 
 /** Destination marker — Dark square pin like Uber */
 const DestinationMarker = ({ label }: { label?: string }) => (
-  <View style={destStyles.container}>
+  <View style={destStyles.wrapper}>
     <View style={destStyles.square}>
       <View style={destStyles.innerDot} />
     </View>
@@ -40,29 +40,29 @@ const DestinationMarker = ({ label }: { label?: string }) => (
 );
 
 const destStyles = StyleSheet.create({
-  container: { alignItems: 'center' },
+  wrapper: { alignItems: 'center', width: 80 },
   square: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     backgroundColor: '#1A1D21',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 8,
   },
   innerDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#FFFFFF',
   },
   stem: {
     width: 3,
-    height: 10,
+    height: 12,
     backgroundColor: '#1A1D21',
     borderBottomLeftRadius: 2,
     borderBottomRightRadius: 2,
@@ -73,17 +73,17 @@ const destStyles = StyleSheet.create({
     color: '#1A1D21',
     marginTop: 3,
     backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     overflow: 'hidden',
     textAlign: 'center',
   },
 });
 
-/** Restaurant marker — Branded with tierra color */
+/** Restaurant marker — Branded pin */
 const RestaurantMarker = ({ name }: { name?: string }) => (
-  <View style={restStyles.container}>
+  <View style={restStyles.wrapper}>
     <View style={restStyles.bubble}>
       <Ionicons name="restaurant" size={16} color="#FFFFFF" />
     </View>
@@ -93,11 +93,11 @@ const RestaurantMarker = ({ name }: { name?: string }) => (
 );
 
 const restStyles = StyleSheet.create({
-  container: { alignItems: 'center' },
+  wrapper: { alignItems: 'center', width: 80 },
   bubble: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#C4956A',
     justifyContent: 'center',
     alignItems: 'center',
@@ -105,16 +105,16 @@ const restStyles = StyleSheet.create({
     borderColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 6,
   },
   arrow: {
     width: 0,
     height: 0,
-    borderLeftWidth: 5,
-    borderRightWidth: 5,
-    borderTopWidth: 7,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderTopColor: '#C4956A',
@@ -122,7 +122,7 @@ const restStyles = StyleSheet.create({
   },
 });
 
-/** Driver marker — Agave-branded moto with pulse ring */
+/** Driver marker — Animated delivery pin with pulse */
 const DriverMarkerView = ({ name }: { name?: string | null }) => {
   const pulseAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -144,20 +144,20 @@ const DriverMarkerView = ({ name }: { name?: string | null }) => {
   }, [pulseAnim]);
 
   return (
-    <View style={driverMStyles.container}>
+    <View style={driverMStyles.wrapper}>
       <RNAnimated.View
         style={[
           driverMStyles.pulse,
           {
             opacity: pulseAnim.interpolate({
               inputRange: [0, 1],
-              outputRange: [0.6, 0],
+              outputRange: [0.5, 0],
             }),
             transform: [
               {
                 scale: pulseAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [1, 1.8],
+                  outputRange: [1, 2],
                 }),
               },
             ],
@@ -166,7 +166,7 @@ const DriverMarkerView = ({ name }: { name?: string | null }) => {
       />
       <View style={driverMStyles.outerRing}>
         <View style={driverMStyles.innerCircle}>
-          <Text style={driverMStyles.motoIcon}>🛵</Text>
+          <Ionicons name="navigate" size={18} color="#FFFFFF" />
         </View>
       </View>
       {name ? (
@@ -179,60 +179,57 @@ const DriverMarkerView = ({ name }: { name?: string | null }) => {
 };
 
 const driverMStyles = StyleSheet.create({
-  container: { alignItems: 'center', width: 80 },
+  wrapper: { alignItems: 'center', width: 90 },
   pulse: {
     position: 'absolute',
     top: 4,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#2D8B7A',
     alignSelf: 'center',
   },
   outerRing: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: 'rgba(45, 139, 122, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   innerCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#2D8B7A',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
     shadowRadius: 6,
-    elevation: 8,
-  },
-  motoIcon: {
-    fontSize: 16,
+    elevation: 10,
   },
   labelBg: {
-    marginTop: 2,
+    marginTop: 3,
     backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
   },
   label: {
     fontFamily: fonts.outfit.semiBold,
-    fontSize: 11,
+    fontSize: 12,
     color: '#1A1D21',
     textAlign: 'center',
-    maxWidth: 90,
+    maxWidth: 100,
   },
 });
 
@@ -255,6 +252,7 @@ export const OrderTrackingMap: React.FC<Props> = ({
   const [routeETA, setRouteETA] = useState<string | null>(null);
   const [routeDistance, setRouteDistance] = useState<string | null>(null);
   const lastRouteFetch = useRef<string>('');
+  const hasFittedOnce = useRef(false);
 
   // Build markers array
   const markers = useMemo(() => {
@@ -273,38 +271,67 @@ export const OrderTrackingMap: React.FC<Props> = ({
 
   // Fetch route from Directions API
   const fetchRoute = useCallback(async () => {
-    // Determine origin and destination based on status
     let originLat: number | null = null;
     let originLng: number | null = null;
     const destLat = clientLat;
     const destLng = clientLng;
 
     if (status === 'ON_THE_WAY' && driverLat && driverLng) {
-      // Route from driver to client
       originLat = driverLat;
       originLng = driverLng;
     } else if (status === 'ACCEPTED' && restaurantLat && restaurantLng) {
-      // Route from restaurant to client
+      originLat = restaurantLat;
+      originLng = restaurantLng;
+    } else if (status === 'ON_THE_WAY' && restaurantLat && restaurantLng) {
+      // Fallback: if no driver location yet, use restaurant
       originLat = restaurantLat;
       originLng = restaurantLng;
     }
 
-    if (!originLat || !originLng || !destLat || !destLng) return;
+    if (!originLat || !originLng || !destLat || !destLng) {
+      // No origin available — draw straight line as fallback
+      if (driverLat && driverLng && destLat && destLng) {
+        setRouteCoords([
+          { latitude: driverLat, longitude: driverLng },
+          { latitude: destLat, longitude: destLng },
+        ]);
+      }
+      return;
+    }
 
-    // Throttle: don't refetch if origin hasn't moved significantly (~100m)
-    const key = `${originLat.toFixed(3)},${originLng.toFixed(3)}>${destLat.toFixed(4)},${destLng.toFixed(4)}`;
+    // Throttle: don't refetch if origin hasn't moved significantly (~200m)
+    const key = `${originLat.toFixed(3)},${originLng.toFixed(3)}>${destLat.toFixed(3)},${destLng.toFixed(3)}`;
     if (key === lastRouteFetch.current) return;
     lastRouteFetch.current = key;
 
     const result = await getDirectionsRoute(originLat, originLng, destLat, destLng);
-    if (result) {
+    if (result && result.coordinates.length > 1) {
       setRouteCoords(result.coordinates);
       setRouteETA(result.duration);
       setRouteDistance(result.distance);
+    } else {
+      // Directions API failed — draw straight line as fallback
+      setRouteCoords([
+        { latitude: originLat, longitude: originLng },
+        { latitude: destLat, longitude: destLng },
+      ]);
+      // Calculate rough ETA
+      const R = 6371;
+      const dLat = ((destLat - originLat) * Math.PI) / 180;
+      const dLon = ((destLng - originLng) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos((originLat * Math.PI) / 180) *
+        Math.cos((destLat * Math.PI) / 180) *
+        Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const km = R * c;
+      const mins = Math.max(1, Math.round((km / 25) * 60));
+      setRouteETA(`~${mins} min`);
+      setRouteDistance(`${km.toFixed(1)} km`);
     }
   }, [status, driverLat, driverLng, restaurantLat, restaurantLng, clientLat, clientLng]);
 
-  // Fetch route on mount and when driver moves
+  // Fetch route on mount and when status/driver changes
   useEffect(() => {
     if (status === 'ON_THE_WAY' || status === 'ACCEPTED') {
       fetchRoute();
@@ -315,27 +342,35 @@ export const OrderTrackingMap: React.FC<Props> = ({
   useEffect(() => {
     if (status !== 'ON_THE_WAY') return;
     const interval = setInterval(() => {
-      lastRouteFetch.current = ''; // Force refetch
+      lastRouteFetch.current = '';
       fetchRoute();
     }, 30_000);
     return () => clearInterval(interval);
   }, [status, fetchRoute]);
 
-  // Fit map to all markers + route
+  // ALWAYS fit map to show all markers compactly
   useEffect(() => {
-    if (markers.length === 0 || !mapRef.current) return;
+    if (markers.length < 2 || !mapRef.current) return;
     const timer = setTimeout(() => {
-      const allCoords = [
-        ...markers.map((m) => ({ latitude: m.lat, longitude: m.lng })),
-        ...(routeCoords.length > 2 ? [routeCoords[0], routeCoords[routeCoords.length - 1]] : []),
-      ];
+      const allCoords = markers.map((m) => ({ latitude: m.lat, longitude: m.lng }));
       mapRef.current?.fitToCoordinates(allCoords, {
-        edgePadding: { top: 60, right: 60, bottom: 80, left: 60 },
-        animated: true,
+        edgePadding: { top: 80, right: 80, bottom: 100, left: 80 },
+        animated: hasFittedOnce.current,
       });
-    }, 500);
+      hasFittedOnce.current = true;
+    }, hasFittedOnce.current ? 200 : 800);
     return () => clearTimeout(timer);
-  }, [markers, routeCoords.length > 0]);
+  }, [markers]);
+
+  // Re-fit when driver moves significantly
+  useEffect(() => {
+    if (!driverLat || !driverLng || markers.length < 2 || !mapRef.current) return;
+    const allCoords = markers.map((m) => ({ latitude: m.lat, longitude: m.lng }));
+    mapRef.current?.fitToCoordinates(allCoords, {
+      edgePadding: { top: 80, right: 80, bottom: 100, left: 80 },
+      animated: true,
+    });
+  }, [driverLat, driverLng]);
 
   const hasCoords = markers.length > 0;
   if (!hasCoords) return null;
@@ -343,11 +378,11 @@ export const OrderTrackingMap: React.FC<Props> = ({
   const center = {
     latitude: markers[0].lat,
     longitude: markers[0].lng,
-    latitudeDelta: 0.02,
-    longitudeDelta: 0.02,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.04,
   };
 
-  const mapHeight = interactive ? SCREEN_W * 0.85 : 240;
+  const mapHeight = interactive ? SCREEN_W * 0.85 : 260;
 
   return (
     <View style={[styles.container, interactive && styles.containerInteractive, { height: mapHeight }]}>
@@ -370,21 +405,21 @@ export const OrderTrackingMap: React.FC<Props> = ({
         toolbarEnabled={false}
         mapPadding={{ top: 0, right: 0, bottom: 0, left: 0 }}
       >
-        {/* Route polyline — thick dark line like Uber */}
+        {/* Route polyline */}
         {routeCoords.length > 1 && (
           <>
-            {/* Outer shadow line */}
+            {/* Shadow line */}
             <Polyline
               coordinates={routeCoords}
-              strokeWidth={7}
-              strokeColor="rgba(26, 29, 33, 0.15)"
+              strokeWidth={8}
+              strokeColor="rgba(26, 29, 33, 0.12)"
               lineCap="round"
               lineJoin="round"
             />
-            {/* Main route line */}
+            {/* Main route */}
             <Polyline
               coordinates={routeCoords}
-              strokeWidth={4}
+              strokeWidth={5}
               strokeColor="#1A1D21"
               lineCap="round"
               lineJoin="round"
@@ -414,7 +449,7 @@ export const OrderTrackingMap: React.FC<Props> = ({
           </Marker>
         )}
 
-        {/* Driver marker (realtime) */}
+        {/* Driver marker */}
         {driverLat && driverLng && (
           <Marker
             coordinate={{ latitude: driverLat, longitude: driverLng }}
@@ -426,29 +461,24 @@ export const OrderTrackingMap: React.FC<Props> = ({
         )}
       </MapView>
 
-      {/* Status overlay pill */}
-      <View style={styles.overlayTop}>
-        {status === 'ON_THE_WAY' && routeETA && (
+      {/* ETA + Distance overlay — always show when available */}
+      {routeETA && (status === 'ON_THE_WAY' || status === 'ACCEPTED') && (
+        <View style={styles.etaContainer}>
           <View style={styles.etaPill}>
             <Ionicons name="time-outline" size={14} color="#2D8B7A" />
-            <Text style={styles.etaPillText}>{routeETA}</Text>
+            <Text style={styles.etaText}>{routeETA}</Text>
             {routeDistance && (
               <>
                 <View style={styles.etaDivider} />
-                <Text style={styles.etaPillTextMuted}>{routeDistance}</Text>
+                <Ionicons name="location-outline" size={13} color="#9e9e9e" />
+                <Text style={styles.etaTextMuted}>{routeDistance}</Text>
               </>
             )}
           </View>
-        )}
-        {status === 'ACCEPTED' && (
-          <View style={styles.statusPill}>
-            <View style={styles.statusPillDotPreparing} />
-            <Text style={styles.statusPillText}>Preparando tu pedido</Text>
-          </View>
-        )}
-      </View>
+        </View>
+      )}
 
-      {/* Driver info pill at bottom */}
+      {/* Driver status pill */}
       {status === 'ON_THE_WAY' && driverName && (
         <View style={styles.driverPill}>
           <View style={styles.driverPillDot} />
@@ -457,13 +487,20 @@ export const OrderTrackingMap: React.FC<Props> = ({
           </Text>
         </View>
       )}
+
+      {status === 'ACCEPTED' && (
+        <View style={styles.driverPill}>
+          <View style={[styles.driverPillDot, { backgroundColor: '#C4956A' }]} />
+          <Text style={styles.driverPillText}>Preparando tu pedido</Text>
+        </View>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: 240,
+    height: 260,
     borderRadius: radius.lg,
     overflow: 'hidden',
     marginHorizontal: spacing.lg,
@@ -471,9 +508,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
     shadowRadius: 10,
-    elevation: 4,
+    elevation: 5,
   },
   containerInteractive: {
     marginHorizontal: 0,
@@ -483,33 +520,32 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
   },
-  // Overlay top
-  overlayTop: {
+  // ETA overlay — top center
+  etaContainer: {
     position: 'absolute',
-    top: spacing.sm,
+    top: spacing.sm + 4,
     alignSelf: 'center',
   },
-  // ETA pill
   etaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: 'rgba(255,255,255,0.96)',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    gap: 6,
+    gap: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  etaPillText: {
+  etaText: {
     fontFamily: fonts.outfit.bold,
     fontSize: 14,
     color: '#1A1D21',
   },
-  etaPillTextMuted: {
+  etaTextMuted: {
     fontFamily: fonts.outfit.regular,
     fontSize: 12,
     color: '#9e9e9e',
@@ -518,41 +554,16 @@ const styles = StyleSheet.create({
     width: 1,
     height: 14,
     backgroundColor: '#E0E0E0',
+    marginHorizontal: 2,
   },
-  // Status pill
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  statusPillDotPreparing: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#C4956A',
-  },
-  statusPillText: {
-    fontFamily: fonts.outfit.semiBold,
-    fontSize: 13,
-    color: '#1A1D21',
-  },
-  // Driver pill
+  // Driver pill — bottom center
   driverPill: {
     position: 'absolute',
-    bottom: spacing.sm,
+    bottom: spacing.sm + 4,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: 'rgba(255,255,255,0.96)',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
@@ -560,8 +571,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 5,
   },
   driverPillDot: {
     width: 8,
