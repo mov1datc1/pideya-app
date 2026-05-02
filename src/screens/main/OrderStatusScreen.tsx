@@ -153,7 +153,7 @@ export const OrderStatusScreen: React.FC = () => {
             <View style={styles.rejectedContainer}>
               <Ionicons
                 name={isRejected ? 'close-circle' : 'ban'}
-                size={80}
+                size={48}
                 color={colors.error}
               />
               <Text style={styles.rejectedTitle}>
@@ -165,7 +165,7 @@ export const OrderStatusScreen: React.FC = () => {
             </View>
           ) : isDelivered ? (
             <View style={styles.deliveredContainer}>
-              <Ionicons name="checkmark-circle" size={80} color={colors.agave} />
+              <Ionicons name="checkmark-circle" size={48} color={colors.agave} />
               <Text style={styles.deliveredTitle}>Pedido entregado!</Text>
               <Text style={styles.deliveredSubtitle}>Buen provecho!</Text>
             </View>
@@ -174,7 +174,7 @@ export const OrderStatusScreen: React.FC = () => {
               <View style={styles.pulseCircle}>
                 <Ionicons
                   name={STATUS_STEPS[currentIdx]?.icon as keyof typeof Ionicons.glyphMap || 'time'}
-                  size={40}
+                  size={24}
                   color={colors.agave}
                 />
               </View>
@@ -348,19 +348,19 @@ const styles = StyleSheet.create({
   // Status area
   statusArea: {
     alignItems: 'center',
-    paddingVertical: spacing['3xl'],
+    paddingVertical: spacing.lg,
   },
   activeContainer: {
     alignItems: 'center',
   },
   pulseCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors['agave-light'],
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
   },
   activeStatus: {
     ...textStyles.h2,
