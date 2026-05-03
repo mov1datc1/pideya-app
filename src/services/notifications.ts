@@ -59,23 +59,37 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
 };
 
 /**
- * Guardar el push token en Supabase vinculado al telefono del usuario.
- * Usa upsert por si el token ya existe.
+ * Guardar el push token en la tabla push_tokens de Supabase.
+ * Usa upsert para actualizar si el token ya existe.
  */
 export const savePushToken = async (
   clientPhone: string,
   pushToken: string,
 ) => {
-  // Guardamos en user_metadata via auth si hay sesion activa
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
-    await supabase.auth.updateUser({
-      data: { push_token: pushToken, phone: clientPhone },
-    });
-  }
+  if (!user) return;
+
+  // Save to push_tokens table (used by pg_net trigger for real push)
+  await supabase
+    .from('push_tokens')
+    .upsert(
+      {
+        user_id: user.id,
+        expo_token: pushToken,
+        client_phone: clientPhone,
+        device_info: Platform.OS,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'expo_token' },
+    );
+
+  // Also keep in user_metadata for backwards compatibility
+  await supabase.auth.updateUser({
+    data: { push_token: pushToken, phone: clientPhone },
+  });
 };
 
 /** Listener para notificaciones recibidas (app en foreground) */
