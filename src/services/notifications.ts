@@ -66,30 +66,45 @@ export const savePushToken = async (
   clientPhone: string,
   pushToken: string,
 ) => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return;
+    if (!user) {
+      console.warn('[PideYa] savePushToken: no auth user, skipping');
+      return;
+    }
 
-  // Save to push_tokens table (used by pg_net trigger for real push)
-  await supabase
-    .from('push_tokens')
-    .upsert(
-      {
-        user_id: user.id,
-        expo_token: pushToken,
-        client_phone: clientPhone,
-        device_info: Platform.OS,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'expo_token' },
-    );
+    console.log('[PideYa] savePushToken: saving token for', clientPhone, 'user', user.id);
 
-  // Also keep in user_metadata for backwards compatibility
-  await supabase.auth.updateUser({
-    data: { push_token: pushToken, phone: clientPhone },
-  });
+    // Save to push_tokens table (used by pg_net trigger for real push)
+    const { error: upsertError } = await supabase
+      .from('push_tokens')
+      .upsert(
+        {
+          user_id: user.id,
+          expo_token: pushToken,
+          client_phone: clientPhone,
+          device_info: Platform.OS,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'expo_token' },
+      );
+
+    if (upsertError) {
+      console.error('[PideYa] savePushToken upsert error:', JSON.stringify(upsertError));
+    } else {
+      console.log('[PideYa] savePushToken: token saved successfully');
+    }
+
+    // Also keep in user_metadata for backwards compatibility
+    await supabase.auth.updateUser({
+      data: { push_token: pushToken, phone: clientPhone },
+    });
+  } catch (err) {
+    console.error('[PideYa] savePushToken exception:', err);
+  }
 };
 
 /** Listener para notificaciones recibidas (app en foreground) */

@@ -17,7 +17,10 @@ export const getRestaurants = async (zone?: string) => {
   }
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    console.error('[PideYa] getRestaurants error:', JSON.stringify(error));
+    throw error;
+  }
   return data as Restaurant[];
 };
 
@@ -27,7 +30,10 @@ export const getRestaurantById = async (id: string) => {
     .select('*')
     .eq('id', id)
     .single();
-  if (error) throw error;
+  if (error) {
+    console.error('[PideYa] getRestaurantById error:', JSON.stringify(error));
+    throw error;
+  }
   return data as Restaurant;
 };
 

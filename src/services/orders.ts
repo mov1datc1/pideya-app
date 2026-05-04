@@ -34,7 +34,10 @@ export const getOrderById = async (id: string) => {
     .select('*, restaurants(name, lat, lng, logo_url)')
     .eq('id', id)
     .single();
-  if (error) throw error;
+  if (error) {
+    console.error('[PideYa] getOrderById error:', JSON.stringify(error));
+    throw error;
+  }
   return data as Order & { restaurants?: { name: string; lat: number; lng: number; logo_url: string | null } };
 };
 
@@ -49,7 +52,10 @@ export const getOrderHistory = async (clientPhone: string) => {
     .eq('client_phone', clientPhone)
     .order('created_at', { ascending: false })
     .limit(50);
-  if (error) throw error;
+  if (error) {
+    console.error('[PideYa] getOrderHistory error:', JSON.stringify(error));
+    throw error;
+  }
   return data as (Order & { restaurants: { name: string; logo_url: string | null } })[];
 };
 
@@ -61,7 +67,10 @@ export const getActiveOrders = async (clientPhone: string) => {
     .eq('client_phone', clientPhone)
     .in('status', ['PENDING', 'ACCEPTED', 'ON_THE_WAY'])
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (error) {
+    console.error('[PideYa] getActiveOrders error:', JSON.stringify(error));
+    throw error;
+  }
   return data as (Order & { restaurants: { name: string; logo_url: string | null } })[];
 };
 

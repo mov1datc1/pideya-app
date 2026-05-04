@@ -45,9 +45,13 @@ export const useNotificationSetup = () => {
     registered.current = true;
 
     (async () => {
+      console.log('[PideYa] useNotificationSetup: registering push, phone=', profile?.phone);
       const token = await registerForPushNotifications();
+      console.log('[PideYa] useNotificationSetup: token=', token ? token.substring(0, 30) + '...' : 'null');
       if (token && profile?.phone) {
         await savePushToken(profile.phone, token);
+      } else {
+        console.warn('[PideYa] useNotificationSetup: skipping save, token=', !!token, 'phone=', profile?.phone);
       }
     })();
   }, [profile?.phone]);
