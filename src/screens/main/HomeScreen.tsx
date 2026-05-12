@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,19 +11,32 @@ import {
   ScrollView,
   Dimensions,
   Animated,
+  Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as Location from 'expo-location';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { LogoLockup } from '../../components/branding/LogoLockup';
 import { Card } from '../../components/ui/Card';
 import { useRestaurants } from '../../hooks/useRestaurants';
 import { useAuth } from '../../hooks/useAuth';
 import { useOrders } from '../../hooks/useOrders';
+import * as addressService from '../../services/addresses';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
-import type { Restaurant, FoodType } from '../../types/database';
+import type { Restaurant, FoodType, UserAddress } from '../../types/database';
+
+/** Haversine distance in km between two lat/lng points */
+const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH * 0.72;
@@ -50,6 +63,71 @@ export const HomeScreen: React.FC = () => {
   const { activeOrders } = useOrders(profile?.phone ?? '');
   const activeOrder = activeOrders[0] ?? null;
 
+  // ── Location state ──
+  const [userLat, setUserLat] = useState(0);
+  const [userLng, setUserLng] = useState(0);
+  const [userAddressLabel, setUserAddressLabel] = useState('Selecciona tu ubicación');
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [locationReady, setLocationReady] = useState(false);
+
+  // Load saved addresses + set default location
+  useEffect(() => {
+    const init = async () => {
+      const addrs = await addressService.getAddresses();
+      setSavedAddresses(addrs);
+      const def = addrs.find((a) => a.is_default) ?? addrs[0];
+      if (def) {
+        setUserLat(def.latitude);
+        setUserLng(def.longitude);
+        setUserAddressLabel(def.label);
+        setLocationReady(true);
+      } else {
+        // First time — request GPS
+        requestGPS();
+      }
+    };
+    void init();
+  }, []);
+
+  const requestGPS = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Ubicación', 'Necesitamos tu ubicación para mostrarte restaurantes cercanos. Puedes agregarla manualmente.');
+        setLocationReady(true);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLat(loc.coords.latitude);
+      setUserLng(loc.coords.longitude);
+      setUserAddressLabel('Mi ubicación actual');
+      setLocationReady(true);
+      // Save as default address
+      const newAddr = await addressService.addAddress({
+        user_id: profile?.full_name || 'local',
+        label: 'Mi ubicación',
+        address_text: `${loc.coords.latitude.toFixed(5)}, ${loc.coords.longitude.toFixed(5)}`,
+        reference: null,
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        is_default: true,
+        is_pin_location: true,
+      });
+      setSavedAddresses((prev) => [...prev, newAddr]);
+    } catch {
+      setLocationReady(true);
+    }
+  }, [profile]);
+
+  const selectSavedAddress = useCallback(async (addr: UserAddress) => {
+    setUserLat(addr.latitude);
+    setUserLng(addr.longitude);
+    setUserAddressLabel(addr.label);
+    setShowLocationPicker(false);
+    await addressService.setDefaultAddress(addr.id);
+  }, []);
+
   // Banner animation
   const bannerAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -60,13 +138,19 @@ export const HomeScreen: React.FC = () => {
     }).start();
   }, [activeOrder]);
 
-  const filteredRestaurants = useMemo(
-    () =>
-      selectedType === 'ALL'
-        ? restaurants
-        : restaurants.filter((r) => r.type === selectedType),
-    [restaurants, selectedType],
-  );
+  // Filter by type AND distance
+  const filteredRestaurants = useMemo(() => {
+    let list = selectedType === 'ALL' ? restaurants : restaurants.filter((r) => r.type === selectedType);
+    // Distance filter — only if user has location set
+    if (userLat !== 0 && userLng !== 0) {
+      list = list.filter((r) => {
+        if (!r.lat || !r.lng) return true; // no coords = show anyway
+        const dist = haversineKm(userLat, userLng, Number(r.lat), Number(r.lng));
+        return dist <= (r.delivery_radius_km || 10);
+      });
+    }
+    return list;
+  }, [restaurants, selectedType, userLat, userLng]);
 
   // Featured: open restaurants with cover images (promos/popular)
   const featured = useMemo(
@@ -162,9 +246,30 @@ export const HomeScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  // Distance badge helper
+  const getDistanceText = (r: Restaurant): string | null => {
+    if (userLat === 0 || userLng === 0 || !r.lat || !r.lng) return null;
+    const d = haversineKm(userLat, userLng, Number(r.lat), Number(r.lng));
+    return d < 1 ? `${Math.round(d * 1000)}m` : `${d.toFixed(1)}km`;
+  };
+
   // Build a single scrollable data source with sections
   const ListHeader = () => (
     <>
+      {/* ── LOCATION BANNER ── */}
+      <TouchableOpacity
+        style={styles.locationBanner}
+        onPress={() => setShowLocationPicker(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="location" size={20} color={colors.agave} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.locationLabel}>Entregando en</Text>
+          <Text style={styles.locationValue} numberOfLines={1}>{userAddressLabel}</Text>
+        </View>
+        <Ionicons name="chevron-down" size={18} color={colors['ink-muted']} />
+      </TouchableOpacity>
+
       {/* Greeting */}
       <Text style={styles.greeting}>{greeting}</Text>
       <Text style={styles.subtitle}>Que se te antoja hoy?</Text>
@@ -303,6 +408,50 @@ export const HomeScreen: React.FC = () => {
           </TouchableOpacity>
         </Animated.View>
       )}
+      {/* ── LOCATION PICKER MODAL ── */}
+      <Modal visible={showLocationPicker} animationType="slide" transparent>
+        <View style={styles.locModalOverlay}>
+          <View style={styles.locModalContent}>
+            <View style={styles.locModalHeader}>
+              <Text style={styles.locModalTitle}>📍 ¿Dónde quieres recibir?</Text>
+              <TouchableOpacity onPress={() => setShowLocationPicker(false)}>
+                <Ionicons name="close" size={24} color={colors.ink} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.locGpsBtn} onPress={() => { setShowLocationPicker(false); void requestGPS(); }}>
+              <Ionicons name="navigate" size={20} color={colors.white} />
+              <Text style={styles.locGpsBtnText}>Usar mi ubicación actual (GPS)</Text>
+            </TouchableOpacity>
+
+            {savedAddresses.length > 0 && (
+              <View style={{ marginTop: spacing.md }}>
+                <Text style={styles.locSavedTitle}>Direcciones guardadas</Text>
+                {savedAddresses.map((addr) => (
+                  <TouchableOpacity
+                    key={addr.id}
+                    style={[
+                      styles.locAddrRow,
+                      userAddressLabel === addr.label && styles.locAddrRowActive,
+                    ]}
+                    onPress={() => void selectSavedAddress(addr)}
+                  >
+                    <Ionicons
+                      name={addr.label.toLowerCase().includes('casa') ? 'home' : addr.label.toLowerCase().includes('trabajo') ? 'briefcase' : 'location'}
+                      size={20}
+                      color={userAddressLabel === addr.label ? colors.agave : colors['ink-muted']}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.locAddrLabel}>{addr.label}</Text>
+                      <Text style={styles.locAddrText} numberOfLines={1}>{addr.address_text}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScreenWrapper>
   );
 };
@@ -311,6 +460,91 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingVertical: spacing.sm,
+  },
+  // ── Location banner ──
+  locationBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    borderWidth: 1.5,
+    borderColor: colors['agave-light'],
+  },
+  locationLabel: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 11,
+    color: colors['ink-muted'],
+  },
+  locationValue: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  // ── Location modal ──
+  locModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  locModalContent: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: spacing.xl,
+    maxHeight: '70%',
+  },
+  locModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  locModalTitle: {
+    ...textStyles.h2,
+    color: colors.ink,
+  },
+  locGpsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.agave,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  locGpsBtnText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.white,
+  },
+  locSavedTitle: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 13,
+    color: colors['ink-muted'],
+    marginBottom: spacing.sm,
+  },
+  locAddrRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.sm,
+    marginBottom: spacing.xs,
+  },
+  locAddrRowActive: {
+    backgroundColor: colors['agave-light'],
+  },
+  locAddrLabel: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.ink,
+  },
+  locAddrText: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: colors['ink-muted'],
   },
   greeting: {
     ...textStyles.h1,

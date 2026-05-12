@@ -20,9 +20,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { createOrder } from '../../services/orders';
 import * as clientProfileService from '../../services/clientProfile';
 import * as addressService from '../../services/addresses';
+import { fetchCommissionTiers, calculateCommission } from '../../services/commission';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
-import type { PaymentMethod, OrderItemJSON, UserAddress } from '../../types/database';
+import type { PaymentMethod, OrderItemJSON, UserAddress, CommissionTier, DeliveryType } from '../../types/database';
 
 type NavType = NativeStackNavigationProp<RootStackParamList>;
 
@@ -34,8 +35,8 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] =
 
 const TIP_OPTIONS = [0, 10, 20, 30, 50];
 
-/** Service fee as % of subtotal */
-const SERVICE_FEE_RATE = 0.08;
+
+
 
 export const CheckoutScreen: React.FC = () => {
   const navigation = useNavigation<NavType>();
@@ -46,6 +47,7 @@ export const CheckoutScreen: React.FC = () => {
     itemsTotal,
     itemCount,
     setPaymentMethod,
+    setDeliveryType,
     setDeliveryAddress,
     setTip,
     setPaysWith,
@@ -139,10 +141,18 @@ export const CheckoutScreen: React.FC = () => {
     ]);
   };
 
+  // Commission tiers from app_settings
+  const [commissionTiers, setCommissionTiers] = useState<CommissionTier[]>([]);
+
+  useEffect(() => {
+    fetchCommissionTiers().then(setCommissionTiers);
+  }, []);
+
   // Price calculations
-  const deliveryFee = 25;
-  const serviceFee = useMemo(() => Math.round(itemsTotal * SERVICE_FEE_RATE * 100) / 100, [itemsTotal]);
-  const total = itemsTotal + deliveryFee + serviceFee + cart.tip_amount;
+  const isPickup = cart.delivery_type === 'pickup';
+  const deliveryFee = isPickup ? 0 : 25;
+  const commissionFee = useMemo(() => calculateCommission(itemsTotal, commissionTiers), [itemsTotal, commissionTiers]);
+  const total = itemsTotal + deliveryFee + commissionFee + cart.tip_amount;
 
   const selectedAddress = useMemo(
     () => savedAddresses.find((a) => a.id === selectedAddressId),
@@ -157,7 +167,7 @@ export const CheckoutScreen: React.FC = () => {
   };
 
   const handlePlaceOrder = async () => {
-    if (!addressText.trim()) {
+    if (!isPickup && !addressText.trim()) {
       Alert.alert('Direccion requerida', 'Por favor ingresa tu direccion de entrega.');
       return;
     }
@@ -194,12 +204,14 @@ export const CheckoutScreen: React.FC = () => {
         restaurant_id: cart.restaurant_id,
         client_name: profile?.full_name || 'Cliente',
         client_phone: profile?.phone || '',
-        client_lat: addressLat || 0,
-        client_lng: addressLng || 0,
-        client_location_note: locationNote || undefined,
+        client_lat: isPickup ? 0 : (addressLat || 0),
+        client_lng: isPickup ? 0 : (addressLng || 0),
+        client_location_note: isPickup ? 'PICKUP — Recoger en local' : (locationNote || undefined),
         items: orderItems,
         subtotal: itemsTotal,
+        commission_amount: commissionFee,
         delivery_amount: deliveryFee,
+        delivery_type: cart.delivery_type,
         total,
         payment_method: cart.payment_method,
       });
@@ -232,16 +244,43 @@ export const CheckoutScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* ── DELIVERY ADDRESS ── */}
+        {/* ── PICKUP / DELIVERY SELECTOR ── */}
         <View style={styles.section}>
-          {/* Selected address display (UberEats style) */}
-          {selectedAddress && !showNewAddress ? (
-            <View>
-              <TouchableOpacity
-                style={styles.addressCard}
-                onPress={() => setShowNewAddress(true)}
-                activeOpacity={0.7}
-              >
+          <View style={styles.sectionHeader}>
+            <Ionicons name="bicycle-outline" size={20} color={colors.agave} />
+            <Text style={styles.sectionTitle}>Tipo de entrega</Text>
+          </View>
+          <View style={styles.deliveryTypeRow}>
+            <TouchableOpacity
+              style={[styles.deliveryTypeCard, cart.delivery_type === 'delivery' && styles.deliveryTypeCardActive]}
+              onPress={() => setDeliveryType('delivery')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.deliveryTypeEmoji}>{'\ud83d\udef5'}</Text>
+              <Text style={[styles.deliveryTypeLabel, cart.delivery_type === 'delivery' && styles.deliveryTypeLabelActive]}>Envío a domicilio</Text>
+              <Text style={styles.deliveryTypeHint}>Un repartidor lo lleva</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.deliveryTypeCard, cart.delivery_type === 'pickup' && styles.deliveryTypeCardActive]}
+              onPress={() => setDeliveryType('pickup')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.deliveryTypeEmoji}>{'\ud83c\udfe0'}</Text>
+              <Text style={[styles.deliveryTypeLabel, cart.delivery_type === 'pickup' && styles.deliveryTypeLabelActive]}>Recoger en local</Text>
+              <Text style={styles.deliveryTypeHint}>Sin costo de envío</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── DELIVERY ADDRESS (read-only, from Home) ── */}
+        {!isPickup && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="location-outline" size={20} color={colors.agave} />
+              <Text style={styles.sectionTitle}>Dirección de entrega</Text>
+            </View>
+            {selectedAddress ? (
+              <View style={styles.addressCard}>
                 <View style={styles.addressIconCircle}>
                   <Ionicons
                     name={getAddressIcon(selectedAddress.label) as keyof typeof Ionicons.glyphMap}
@@ -255,119 +294,48 @@ export const CheckoutScreen: React.FC = () => {
                     {selectedAddress.address_text}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.mapMiniBtn} onPress={openMapPicker} activeOpacity={0.7}>
-                <Ionicons name="map-outline" size={16} color={colors.agave} />
-                <Text style={styles.mapMiniBtnText}>
-                  {addressLat !== 0 ? 'Cambiar en mapa' : 'Marcar en mapa'}
+              </View>
+            ) : addressText ? (
+              <View style={styles.addressCard}>
+                <View style={styles.addressIconCircle}>
+                  <Ionicons name="location" size={20} color={colors.agave} />
+                </View>
+                <View style={styles.addressCardInfo}>
+                  <Text style={styles.addressCardLabel}>Mi ubicación</Text>
+                  <Text style={styles.addressCardText} numberOfLines={2}>{addressText}</Text>
+                </View>
+              </View>
+            ) : (
+              <Text style={{ fontFamily: fonts.outfit.regular, fontSize: 14, color: colors['ink-muted'], padding: spacing.sm }}>
+                Selecciona una dirección desde la pantalla principal.
+              </Text>
+            )}
+            {locationNote ? (
+              <View style={styles.instructionsRow}>
+                <Ionicons name="person-outline" size={20} color={colors['ink-muted']} />
+                <View style={styles.instructionsInfo}>
+                  <Text style={styles.instructionsTitle}>Referencia</Text>
+                  <Text style={styles.instructionsText} numberOfLines={1}>{locationNote}</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        )}
+
+        {/* ── PICKUP INFO ── */}
+        {isPickup && (
+          <View style={[styles.section, { backgroundColor: 'rgba(45,139,122,0.06)' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Text style={{ fontSize: 28 }}>{'\ud83c\udfe0'}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: fonts.outfit.semiBold, fontSize: 16, color: colors.ink }}>Recoger en el local</Text>
+                <Text style={{ fontFamily: fonts.outfit.regular, fontSize: 13, color: colors['ink-muted'], marginTop: 2 }}>
+                  {cart.restaurant_name} · Te avisaremos cuando esté listo
                 </Text>
-              </TouchableOpacity>
+              </View>
             </View>
-          ) : null}
-
-          {/* Delivery instructions */}
-          {selectedAddress && !showNewAddress && locationNote ? (
-            <TouchableOpacity style={styles.instructionsRow} activeOpacity={0.7}>
-              <Ionicons name="person-outline" size={20} color={colors['ink-muted']} />
-              <View style={styles.instructionsInfo}>
-                <Text style={styles.instructionsTitle}>Instrucciones de entrega</Text>
-                <Text style={styles.instructionsText} numberOfLines={1}>{locationNote}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
-            </TouchableOpacity>
-          ) : null}
-
-          {/* Saved addresses selector (shown when editing) */}
-          {(showNewAddress || !selectedAddress) && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="location-outline" size={20} color={colors.agave} />
-                <Text style={styles.sectionTitle}>Direccion de entrega</Text>
-              </View>
-
-              {savedAddresses.length > 0 && (
-                <View style={styles.savedAddresses}>
-                  {savedAddresses.map((addr) => (
-                    <TouchableOpacity
-                      key={addr.id}
-                      style={[
-                        styles.savedAddr,
-                        selectedAddressId === addr.id && styles.savedAddrActive,
-                      ]}
-                      onPress={() => selectAddress(addr)}
-                    >
-                      <View style={styles.savedAddrIcon}>
-                        <Ionicons
-                          name={getAddressIcon(addr.label) as keyof typeof Ionicons.glyphMap}
-                          size={18}
-                          color={selectedAddressId === addr.id ? colors.agave : colors['ink-muted']}
-                        />
-                      </View>
-                      <View style={styles.savedAddrInfo}>
-                        <Text style={[
-                          styles.savedAddrLabel,
-                          selectedAddressId === addr.id && styles.savedAddrLabelActive,
-                        ]}>
-                          {addr.label}
-                        </Text>
-                        <Text style={styles.savedAddrText} numberOfLines={1}>{addr.address_text}</Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => handleDeleteAddress(addr.id)}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Ionicons name="close-circle-outline" size={18} color={colors['ink-hint']} />
-                      </TouchableOpacity>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* Map picker button */}
-              <TouchableOpacity style={styles.mapPickerBtn} onPress={openMapPicker} activeOpacity={0.8}>
-                <View style={styles.mapPickerIcon}>
-                  <Ionicons name="map" size={22} color={colors.agave} />
-                </View>
-                <View style={styles.mapPickerInfo}>
-                  <Text style={styles.mapPickerTitle}>Seleccionar en mapa</Text>
-                  <Text style={styles.mapPickerHint}>
-                    {addressLat !== 0 ? 'Ubicacion seleccionada' : 'Toca para marcar tu ubicacion exacta'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={colors['ink-hint']} />
-              </TouchableOpacity>
-
-              {/* New address form */}
-              <View style={styles.addressInputs}>
-                <TextInput
-                  style={styles.addressInput}
-                  placeholder="Ej: Calle Hidalgo #123, Centro"
-                  placeholderTextColor={colors['ink-hint']}
-                  value={addressText}
-                  onChangeText={setAddressText}
-                  multiline
-                />
-                <TextInput
-                  style={styles.noteInput}
-                  placeholder="Referencia: entre calles, color de casa..."
-                  placeholderTextColor={colors['ink-hint']}
-                  value={locationNote}
-                  onChangeText={setLocationNote}
-                />
-                {addressText.trim().length > 0 && (
-                  <TouchableOpacity
-                    style={styles.saveAddrBtn}
-                    onPress={() => setShowSaveModal(true)}
-                  >
-                    <Ionicons name="bookmark-outline" size={16} color={colors.agave} />
-                    <Text style={styles.saveAddrBtnText}>Guardar esta direccion</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* ── ORDER SUMMARY (collapsible) ── */}
         <TouchableOpacity
@@ -465,7 +433,8 @@ export const CheckoutScreen: React.FC = () => {
           )}
         </View>
 
-        {/* ── TIP ── */}
+        {/* ── TIP (delivery only) ── */}
+        {!isPickup && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="heart-outline" size={20} color={colors.agave} />
@@ -488,6 +457,7 @@ export const CheckoutScreen: React.FC = () => {
             })}
           </View>
         </View>
+        )}
 
         {/* ── PRICE BREAKDOWN ── */}
         <View style={styles.section}>
@@ -495,14 +465,15 @@ export const CheckoutScreen: React.FC = () => {
             <Text style={styles.priceLabel}>Subtotal</Text>
             <Text style={styles.priceValue}>${itemsTotal.toFixed(2)}</Text>
           </View>
+          {!isPickup && (
           <View style={styles.priceRow}>
             <View style={styles.priceLabelRow}>
-              <Text style={styles.priceLabel}>Costo de envio</Text>
+              <Text style={styles.priceLabel}>Costo de envío</Text>
               <TouchableOpacity
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => Alert.alert(
-                  'Costo de envio',
-                  'El costo de envio se calcula segun la distancia entre el restaurante y tu direccion.',
+                  'Costo de envío',
+                  'El costo de envío se calcula según la distancia entre el restaurante y tu dirección.',
                 )}
               >
                 <Ionicons name="information-circle-outline" size={16} color={colors['ink-hint']} />
@@ -510,20 +481,21 @@ export const CheckoutScreen: React.FC = () => {
             </View>
             <Text style={styles.priceValue}>${deliveryFee.toFixed(2)}</Text>
           </View>
+          )}
           <View style={styles.priceRow}>
             <View style={styles.priceLabelRow}>
-              <Text style={styles.priceLabel}>Cuota de servicio</Text>
+              <Text style={styles.priceLabel}>Comisión PideYa</Text>
               <TouchableOpacity
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 onPress={() => Alert.alert(
-                  'Cuota de servicio',
-                  'Esta cuota ayuda a mantener la plataforma y mejorar el servicio para ti.',
+                  'Comisión PideYa',
+                  'Esta comisión ayuda a mantener la plataforma y mejorar el servicio para ti.',
                 )}
               >
                 <Ionicons name="information-circle-outline" size={16} color={colors['ink-hint']} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.priceValue}>${serviceFee.toFixed(2)}</Text>
+            <Text style={styles.priceValue}>${commissionFee.toFixed(2)}</Text>
           </View>
           {cart.tip_amount > 0 && (
             <View style={styles.priceRow}>
@@ -631,6 +603,43 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...textStyles.h3,
     color: colors.ink,
+  },
+  // ── Delivery type selector ──
+  deliveryTypeRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  deliveryTypeCard: {
+    flex: 1,
+    alignItems: 'center',
+    padding: spacing.lg,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.cloud,
+    backgroundColor: colors.snow,
+    gap: spacing.xs,
+  },
+  deliveryTypeCardActive: {
+    borderColor: colors.agave,
+    backgroundColor: colors['agave-light'],
+  },
+  deliveryTypeEmoji: {
+    fontSize: 28,
+  },
+  deliveryTypeLabel: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 14,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  deliveryTypeLabelActive: {
+    color: colors['agave-dark'],
+  },
+  deliveryTypeHint: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 11,
+    color: colors['ink-muted'],
+    textAlign: 'center',
   },
   scroll: {
     flex: 1,

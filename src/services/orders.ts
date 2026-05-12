@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Order, OrderItemJSON, OrderStatus } from '../types/database';
+import type { Order, OrderItemJSON, OrderStatus, DeliveryType } from '../types/database';
 
 interface CreateOrderInput {
   restaurant_id: string;
@@ -10,7 +10,9 @@ interface CreateOrderInput {
   client_location_note?: string;
   items: OrderItemJSON[];
   subtotal: number;
+  commission_amount: number;
   delivery_amount: number;
+  delivery_type: DeliveryType;
   total: number;
   payment_method?: string;
 }

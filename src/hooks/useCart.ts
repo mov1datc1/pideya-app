@@ -6,6 +6,7 @@ import type {
   MenuItem,
   MenuItemOption,
   PaymentMethod,
+  DeliveryType,
 } from '../types/database';
 
 const STORAGE_KEY = '@pideya/cart';
@@ -15,6 +16,7 @@ const emptyCart: Cart = {
   restaurant_name: '',
   items: [],
   payment_method: 'cash',
+  delivery_type: 'delivery',
   delivery_address_text: '',
   delivery_lat: 0,
   delivery_lng: 0,
@@ -37,6 +39,7 @@ interface CartContextValue {
   removeItem: (menuItemId: string, menuItemName?: string) => void;
   updateQuantity: (menuItemId: string, quantity: number, menuItemName?: string) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
+  setDeliveryType: (type: DeliveryType) => void;
   setDeliveryAddress: (text: string, lat: number, lng: number, note: string) => void;
   setTip: (amount: number) => void;
   setPaysWith: (amount: number | null) => void;
@@ -148,6 +151,10 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     setCart((prev) => ({ ...prev, payment_method: method }));
   }, []);
 
+  const setDeliveryType = useCallback((type: DeliveryType) => {
+    setCart((prev) => ({ ...prev, delivery_type: type }));
+  }, []);
+
   const setDeliveryAddress = useCallback(
     (text: string, lat: number, lng: number, note: string) => {
       setCart((prev) => ({
@@ -189,6 +196,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       removeItem,
       updateQuantity,
       setPaymentMethod,
+      setDeliveryType,
       setDeliveryAddress,
       setTip,
       setPaysWith,
@@ -197,7 +205,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       itemCount,
       isEmpty: cart.items.length === 0,
     }),
-    [cart, loaded, addItem, removeItem, updateQuantity, setPaymentMethod, setDeliveryAddress, setTip, setPaysWith, clearCart, itemsTotal, itemCount],
+    [cart, loaded, addItem, removeItem, updateQuantity, setPaymentMethod, setDeliveryType, setDeliveryAddress, setTip, setPaysWith, clearCart, itemsTotal, itemCount],
   );
 
   return React.createElement(CartContext.Provider, { value }, children);

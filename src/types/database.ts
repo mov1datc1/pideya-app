@@ -27,6 +27,14 @@ export type OrderStatus =
 
 export type PaymentMethod = 'cash' | 'oxxo' | 'card';
 
+export type DeliveryType = 'delivery' | 'pickup';
+
+export interface CommissionTier {
+  min: number;
+  max: number;
+  fee: number;
+}
+
 // ── Tables ─────────────────────────────────────────────────────
 
 export interface Restaurant {
@@ -116,6 +124,7 @@ export interface Order {
   subtotal: number | null; // migration 011
   commission_amount: number | null; // migration 011
   delivery_amount: number; // migration 012
+  delivery_type: DeliveryType; // migration 022
   status: OrderStatus;
   payment_method: string; // cash | card | oxxo
   rejection_reason: string | null;
@@ -165,6 +174,9 @@ export interface DriverLocation {
 export interface AppSettings {
   id: number;
   commission_fee: number;
+  commission_tiers?: CommissionTier[];
+  cutoff_from?: string;
+  cutoff_to?: string;
   created_at: string;
   updated_at: string;
 }
@@ -219,6 +231,7 @@ export interface Cart {
   restaurant_name: string;
   items: CartItem[];
   payment_method: PaymentMethod;
+  delivery_type: DeliveryType;
   delivery_address_text: string;
   delivery_lat: number;
   delivery_lng: number;
