@@ -79,21 +79,19 @@ export const getActiveOrders = async (clientPhone: string) => {
 /** Cancelar pedido.
  * PENDING: any payment method can cancel.
  * ACCEPTED/ON_THE_WAY: only card payments can cancel (30% fee applied server-side).
+ *
+ * Se pasan currentStatus y paymentMethod directamente desde el state del componente
+ * para evitar un SELECT adicional que puede fallar por RLS policies.
  */
-export const cancelOrder = async (orderId: string) => {
-  // First get current order to check status/payment
-  const { data: current } = await supabase
-    .from('orders')
-    .select('status, payment_method')
-    .eq('id', orderId)
-    .single();
-
-  if (!current) throw new Error('Pedido no encontrado');
-
+export const cancelOrder = async (
+  orderId: string,
+  currentStatus: OrderStatus,
+  paymentMethod: string,
+) => {
   const canCancel =
-    current.status === 'PENDING' ||
-    (current.payment_method === 'card' &&
-      ['ACCEPTED', 'ON_THE_WAY'].includes(current.status));
+    currentStatus === 'PENDING' ||
+    (paymentMethod === 'card' &&
+      ['ACCEPTED', 'ON_THE_WAY'].includes(currentStatus));
 
   if (!canCancel) {
     throw new Error('Este pedido no puede cancelarse en este estado.');
@@ -109,7 +107,13 @@ export const cancelOrder = async (orderId: string) => {
     .eq('id', orderId)
     .select()
     .single();
-  if (error) throw error;
+
+  if (error) {
+    console.error('[PideYa] cancelOrder error:', JSON.stringify(error));
+    throw new Error(
+      error.message || 'No se pudo cancelar el pedido. Intenta de nuevo.',
+    );
+  }
   return data as Order;
 };
 

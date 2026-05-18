@@ -71,6 +71,12 @@ export const HomeScreen: React.FC = () => {
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationReady, setLocationReady] = useState(false);
 
+  // ── Label dialog state (shown after map confirmation) ──
+  const [showLabelDialog, setShowLabelDialog] = useState(false);
+  const [pendingLocation, setPendingLocation] = useState<{ address: string; latitude: number; longitude: number } | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState<'Casa' | 'Trabajo' | 'Otro'>('Casa');
+  const [customLabel, setCustomLabel] = useState('');
+
   // Load saved addresses + set default location
   useEffect(() => {
     const init = async () => {
@@ -83,42 +89,80 @@ export const HomeScreen: React.FC = () => {
         setUserAddressLabel(def.label);
         setLocationReady(true);
       } else {
-        // First time — request GPS
-        requestGPS();
+        // First time — open map for location selection
+        requestGPSAndOpenMap();
       }
     };
     void init();
   }, []);
 
-  const requestGPS = useCallback(async () => {
+  /** Navigate to AddressPicker with GPS as starting point */
+  const requestGPSAndOpenMap = useCallback(async () => {
+    setShowLocationPicker(false);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Ubicación', 'Necesitamos tu ubicación para mostrarte restaurantes cercanos. Puedes agregarla manualmente.');
-        setLocationReady(true);
-        return;
+      let startLat = 20.8167; // Default Tepatitlán
+      let startLng = -102.7633;
+
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        startLat = loc.coords.latitude;
+        startLng = loc.coords.longitude;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setUserLat(loc.coords.latitude);
-      setUserLng(loc.coords.longitude);
-      setUserAddressLabel('Mi ubicación actual');
-      setLocationReady(true);
-      // Save as default address
-      const newAddr = await addressService.addAddress({
-        user_id: profile?.full_name || 'local',
-        label: 'Mi ubicación',
-        address_text: `${loc.coords.latitude.toFixed(5)}, ${loc.coords.longitude.toFixed(5)}`,
-        reference: null,
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        is_default: true,
-        is_pin_location: true,
+
+      // Navigate to full-screen map for pin confirmation
+      navigation.navigate('AddressPicker', {
+        latitude: startLat,
+        longitude: startLng,
+        onSelect: (data: { address: string; latitude: number; longitude: number }) => {
+          setPendingLocation(data);
+          setShowLabelDialog(true);
+        },
       });
-      setSavedAddresses((prev) => [...prev, newAddr]);
     } catch {
       setLocationReady(true);
     }
-  }, [profile]);
+  }, [navigation]);
+
+  /** Open map from "Add new address" without GPS */
+  const openMapForNewAddress = useCallback(() => {
+    setShowLocationPicker(false);
+    navigation.navigate('AddressPicker', {
+      latitude: userLat || 20.8167,
+      longitude: userLng || -102.7633,
+      onSelect: (data: { address: string; latitude: number; longitude: number }) => {
+        setPendingLocation(data);
+        setShowLabelDialog(true);
+      },
+    });
+  }, [navigation, userLat, userLng]);
+
+  /** Save the pending location with the selected label */
+  const saveLabeledAddress = useCallback(async () => {
+    if (!pendingLocation) return;
+    const label = selectedLabel === 'Otro' ? (customLabel.trim() || 'Mi dirección') : selectedLabel;
+
+    const newAddr = await addressService.addAddress({
+      user_id: profile?.full_name || 'local',
+      label,
+      address_text: pendingLocation.address,
+      reference: null,
+      latitude: pendingLocation.latitude,
+      longitude: pendingLocation.longitude,
+      is_default: true,
+      is_pin_location: true,
+    });
+
+    setSavedAddresses((prev) => [...prev, newAddr]);
+    setUserLat(pendingLocation.latitude);
+    setUserLng(pendingLocation.longitude);
+    setUserAddressLabel(label);
+    setLocationReady(true);
+    setShowLabelDialog(false);
+    setPendingLocation(null);
+    setCustomLabel('');
+    setSelectedLabel('Casa');
+  }, [pendingLocation, selectedLabel, customLabel, profile]);
 
   const selectSavedAddress = useCallback(async (addr: UserAddress) => {
     setUserLat(addr.latitude);
@@ -127,6 +171,33 @@ export const HomeScreen: React.FC = () => {
     setShowLocationPicker(false);
     await addressService.setDefaultAddress(addr.id);
   }, []);
+
+  const deleteSavedAddress = useCallback(async (addr: UserAddress) => {
+    Alert.alert(
+      'Eliminar dirección',
+      `¿Eliminar "${addr.label}"?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            await addressService.deleteAddress(addr.id);
+            setSavedAddresses((prev) => prev.filter((a) => a.id !== addr.id));
+            // If this was the active address, reset
+            if (userAddressLabel === addr.label) {
+              const remaining = savedAddresses.filter((a) => a.id !== addr.id);
+              if (remaining.length > 0) {
+                await selectSavedAddress(remaining[0]);
+              } else {
+                setUserAddressLabel('Selecciona tu ubicación');
+              }
+            }
+          },
+        },
+      ],
+    );
+  }, [savedAddresses, userAddressLabel, selectSavedAddress]);
 
   // Banner animation
   const bannerAnim = useRef(new Animated.Value(0)).current;
@@ -419,36 +490,130 @@ export const HomeScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.locGpsBtn} onPress={() => { setShowLocationPicker(false); void requestGPS(); }}>
+            <TouchableOpacity style={styles.locGpsBtn} onPress={() => void requestGPSAndOpenMap()}>
               <Ionicons name="navigate" size={20} color={colors.white} />
-              <Text style={styles.locGpsBtnText}>Usar mi ubicación actual (GPS)</Text>
+              <Text style={styles.locGpsBtnText}>Usar GPS y confirmar en mapa</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.locAddBtn} onPress={openMapForNewAddress}>
+              <Ionicons name="add-circle-outline" size={20} color={colors.agave} />
+              <Text style={styles.locAddBtnText}>Agregar nueva dirección</Text>
             </TouchableOpacity>
 
             {savedAddresses.length > 0 && (
-              <View style={{ marginTop: spacing.md }}>
+              <View style={{ marginTop: spacing.lg }}>
                 <Text style={styles.locSavedTitle}>Direcciones guardadas</Text>
-                {savedAddresses.map((addr) => (
-                  <TouchableOpacity
-                    key={addr.id}
-                    style={[
-                      styles.locAddrRow,
-                      userAddressLabel === addr.label && styles.locAddrRowActive,
-                    ]}
-                    onPress={() => void selectSavedAddress(addr)}
-                  >
-                    <Ionicons
-                      name={addr.label.toLowerCase().includes('casa') ? 'home' : addr.label.toLowerCase().includes('trabajo') ? 'briefcase' : 'location'}
-                      size={20}
-                      color={userAddressLabel === addr.label ? colors.agave : colors['ink-muted']}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.locAddrLabel}>{addr.label}</Text>
-                      <Text style={styles.locAddrText} numberOfLines={1}>{addr.address_text}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
+                <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+                  {savedAddresses.map((addr) => {
+                    const isActive = userAddressLabel === addr.label;
+                    const iconName = addr.label.toLowerCase().includes('casa') ? 'home' :
+                      addr.label.toLowerCase().includes('trabajo') ? 'briefcase' : 'location';
+                    return (
+                      <View
+                        key={addr.id}
+                        style={[
+                          styles.locAddrRow,
+                          isActive && styles.locAddrRowActive,
+                        ]}
+                      >
+                        <TouchableOpacity
+                          style={styles.locAddrTouchable}
+                          onPress={() => void selectSavedAddress(addr)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.locAddrIcon, isActive && styles.locAddrIconActive]}>
+                            <Ionicons
+                              name={iconName}
+                              size={18}
+                              color={isActive ? colors.white : colors['ink-muted']}
+                            />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.locAddrLabel}>{addr.label}</Text>
+                            <Text style={styles.locAddrText} numberOfLines={1}>{addr.address_text}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.locAddrDelete}
+                          onPress={() => void deleteSavedAddress(addr)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons name="trash-outline" size={16} color={colors['ink-hint']} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
               </View>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── LABEL DIALOG MODAL (after map confirmation) ── */}
+      <Modal visible={showLabelDialog} animationType="fade" transparent>
+        <View style={styles.labelModalOverlay}>
+          <View style={styles.labelModalCard}>
+            <Text style={styles.labelModalTitle}>Guardar dirección como...</Text>
+            {pendingLocation && (
+              <Text style={styles.labelModalAddress} numberOfLines={2}>
+                📍 {pendingLocation.address}
+              </Text>
+            )}
+
+            <View style={styles.labelOptions}>
+              {(['Casa', 'Trabajo', 'Otro'] as const).map((opt) => {
+                const isSelected = selectedLabel === opt;
+                const icon = opt === 'Casa' ? 'home' : opt === 'Trabajo' ? 'briefcase' : 'location';
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.labelOption, isSelected && styles.labelOptionActive]}
+                    onPress={() => setSelectedLabel(opt)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={icon}
+                      size={22}
+                      color={isSelected ? colors.white : colors.agave}
+                    />
+                    <Text style={[styles.labelOptionText, isSelected && styles.labelOptionTextActive]}>
+                      {opt === 'Casa' ? '🏠 Casa' : opt === 'Trabajo' ? '💼 Trabajo' : '📍 Otro'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {selectedLabel === 'Otro' && (
+              <TextInput
+                style={styles.labelCustomInput}
+                placeholder="Nombre de la dirección"
+                placeholderTextColor={colors['ink-hint']}
+                value={customLabel}
+                onChangeText={setCustomLabel}
+                autoFocus
+              />
+            )}
+
+            <View style={styles.labelActions}>
+              <TouchableOpacity
+                style={styles.labelCancelBtn}
+                onPress={() => {
+                  setShowLabelDialog(false);
+                  setPendingLocation(null);
+                }}
+              >
+                <Text style={styles.labelCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.labelSaveBtn}
+                onPress={() => void saveLabeledAddress()}
+              >
+                <Ionicons name="checkmark-circle" size={20} color={colors.white} />
+                <Text style={styles.labelSaveText}>Guardar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -545,6 +710,149 @@ const styles = StyleSheet.create({
     fontFamily: fonts.outfit.regular,
     fontSize: 12,
     color: colors['ink-muted'],
+  },
+  locAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1.5,
+    borderColor: colors.agave,
+    borderStyle: 'dashed',
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginTop: spacing.sm,
+  },
+  locAddBtnText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.agave,
+  },
+  locAddrTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  locAddrIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.snow,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locAddrIconActive: {
+    backgroundColor: colors.agave,
+  },
+  locAddrDelete: {
+    padding: spacing.xs,
+    marginLeft: spacing.xs,
+  },
+  // ── Label dialog ──
+  labelModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing['2xl'],
+  },
+  labelModalCard: {
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 360,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  labelModalTitle: {
+    ...textStyles.h3,
+    color: colors.ink,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  labelModalAddress: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 13,
+    color: colors['ink-muted'],
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  labelOptions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  labelOption: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors['agave-light'],
+    backgroundColor: colors.snow,
+    minWidth: 80,
+  },
+  labelOptionActive: {
+    backgroundColor: colors.agave,
+    borderColor: colors.agave,
+  },
+  labelOptionText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 13,
+    color: colors.agave,
+    marginTop: spacing.xs,
+  },
+  labelOptionTextActive: {
+    color: colors.white,
+  },
+  labelCustomInput: {
+    borderWidth: 2,
+    borderColor: colors['agave-light'],
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontFamily: fonts.outfit.regular,
+    fontSize: 15,
+    color: colors.ink,
+    marginBottom: spacing.lg,
+  },
+  labelActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  labelCancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.cloud,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  labelCancelText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors['ink-muted'],
+  },
+  labelSaveBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: colors.agave,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  labelSaveText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 15,
+    color: colors.white,
   },
   greeting: {
     ...textStyles.h1,

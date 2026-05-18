@@ -71,7 +71,8 @@ export const OrderStatusScreen: React.FC = () => {
 
   const handleCancel = () => {
     const paymentMethod = order!.payment_method;
-    const isAfterPending = order!.status !== 'PENDING';
+    const currentStatus = order!.status;
+    const isAfterPending = currentStatus !== 'PENDING';
 
     // Cash + already accepted = can't cancel
     if (paymentMethod === 'cash' && isAfterPending) {
@@ -98,10 +99,11 @@ export const OrderStatusScreen: React.FC = () => {
           onPress: async () => {
             setCancelling(true);
             try {
-              const updated = await cancelOrder(orderId);
+              const updated = await cancelOrder(orderId, currentStatus, paymentMethod);
               setOrder(updated);
-            } catch {
-              Alert.alert('Error', 'No se pudo cancelar el pedido.');
+            } catch (err: any) {
+              const msg = err?.message || 'No se pudo cancelar el pedido.';
+              Alert.alert('Error al cancelar', msg);
             } finally {
               setCancelling(false);
             }

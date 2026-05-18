@@ -66,7 +66,8 @@ export const OrdersScreen: React.FC = () => {
   const handleCancel = (order: Order) => {
     // Cash payment + already accepted = no cancel
     const paymentMethod = order.payment_method;
-    if (paymentMethod === 'cash' && order.status !== 'PENDING') {
+    const currentStatus = order.status;
+    if (paymentMethod === 'cash' && currentStatus !== 'PENDING') {
       Alert.alert(
         'No se puede cancelar',
         'Los pedidos con pago en efectivo no pueden cancelarse despues de ser aceptados por el restaurante.',
@@ -75,7 +76,7 @@ export const OrdersScreen: React.FC = () => {
     }
 
     // Card payment + accepted = charge 30%
-    const isAccepted = order.status !== 'PENDING';
+    const isAccepted = currentStatus !== 'PENDING';
     const cardWarning = paymentMethod === 'card' && isAccepted
       ? '\n\nSe aplicara un cargo del 30% del costo del pedido (sin envio).'
       : '';
@@ -91,10 +92,11 @@ export const OrdersScreen: React.FC = () => {
           onPress: async () => {
             setCancellingId(order.id);
             try {
-              await cancelOrder(order.id);
+              await cancelOrder(order.id, currentStatus, paymentMethod);
               refresh();
-            } catch {
-              Alert.alert('Error', 'No se pudo cancelar el pedido.');
+            } catch (err: any) {
+              const msg = err?.message || 'No se pudo cancelar el pedido.';
+              Alert.alert('Error al cancelar', msg);
             } finally {
               setCancellingId(null);
             }

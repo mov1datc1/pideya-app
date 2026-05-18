@@ -149,7 +149,6 @@ export const AddressPickerScreen: React.FC = () => {
 
   const handleConfirm = () => {
     const finalAddress = addressText.trim() || reverseAddress;
-    navigation.navigate('Checkout' as never);
     // Pass back data via route params callback
     if (route.params?.onSelect) {
       route.params.onSelect({
@@ -158,6 +157,8 @@ export const AddressPickerScreen: React.FC = () => {
         longitude: pinLocation.longitude,
       });
     }
+    // Go back to wherever called us (Home, Checkout, etc.)
+    navigation.goBack();
   };
 
   return (
