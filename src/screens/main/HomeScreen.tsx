@@ -24,6 +24,7 @@ import { Card } from '../../components/ui/Card';
 import { useRestaurants } from '../../hooks/useRestaurants';
 import { useAuth } from '../../hooks/useAuth';
 import { useOrders } from '../../hooks/useOrders';
+import { isRestaurantOpenNow } from '../../utils/timeUtils';
 import * as addressService from '../../services/addresses';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import { supabase } from '../../services/supabase';
@@ -242,7 +243,7 @@ export const HomeScreen: React.FC = () => {
 
   // Featured: open restaurants with cover images (promos/popular)
   const featured = useMemo(
-    () => restaurants.filter((r) => r.is_open && (r.cover_url || r.photo_url)).slice(0, 8),
+    () => restaurants.filter((r) => isRestaurantOpenNow(r.open_time, r.close_time, r.is_open) && (r.cover_url || r.photo_url)).slice(0, 8),
     [restaurants],
   );
 
@@ -256,7 +257,8 @@ export const HomeScreen: React.FC = () => {
     : 'Buen dia';
 
   const navigateToRestaurant = (item: Restaurant) => {
-    if (!item.is_open) {
+    const isOpen = isRestaurantOpenNow(item.open_time, item.close_time, item.is_open);
+    if (!isOpen) {
       Alert.alert(
         'Cerrado',
         'Este establecimiento se encuentra cerrado por el momento. Por favor, intenta más tarde.'
@@ -294,7 +296,7 @@ export const HomeScreen: React.FC = () => {
           ) : null}
         </View>
       </View>
-      {!item.is_open && (
+      {!isRestaurantOpenNow(item.open_time, item.close_time, item.is_open) && (
         <View style={styles.closedBadge}>
           <Text style={styles.closedText}>Cerrado</Text>
         </View>
@@ -330,7 +332,7 @@ export const HomeScreen: React.FC = () => {
             <Text style={styles.metaText}>{item.open_time} – {item.close_time}</Text>
             <View style={styles.dot} />
             <Text style={styles.metaText}>{item.type}</Text>
-            {!item.is_open && (
+            {!isRestaurantOpenNow(item.open_time, item.close_time, item.is_open) && (
               <>
                 <View style={styles.dot} />
                 <Text style={[styles.metaText, { color: colors.error }]}>Cerrado</Text>
