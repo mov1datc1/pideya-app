@@ -23,7 +23,7 @@ export type RootStackParamList = {
   Auth: undefined;
   CompleteProfile: undefined;
   Main: undefined;
-  RestaurantDetail: { restaurantId: string; restaurantName: string; coverUrl?: string };
+  RestaurantDetail: { restaurantId: string; restaurantName: string; restaurantType?: string; coverUrl?: string };
   Cart: undefined;
   Checkout: undefined;
   OrderStatus: { orderId: string };

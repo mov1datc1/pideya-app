@@ -256,9 +256,17 @@ export const HomeScreen: React.FC = () => {
     : 'Buen dia';
 
   const navigateToRestaurant = (item: Restaurant) => {
+    if (!item.is_open) {
+      Alert.alert(
+        'Cerrado',
+        'Este establecimiento se encuentra cerrado por el momento. Por favor, intenta más tarde.'
+      );
+      return;
+    }
     navigation.navigate('RestaurantDetail', {
       restaurantId: item.id,
       restaurantName: item.name,
+      restaurantType: item.type,
       coverUrl: item.cover_url || item.photo_url || undefined,
     });
   };
@@ -424,7 +432,7 @@ export const HomeScreen: React.FC = () => {
 
       {/* Section title for main list */}
       <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: spacing.lg }]}>
-        {selectedType === 'ALL' ? 'Todos los restaurantes' : CATEGORIES.find(c => c.value === selectedType)?.label || 'Restaurantes'}
+        {selectedType === 'ALL' ? 'Todos los establecimientos' : appCategories.find(c => c.value === selectedType)?.label || 'Establecimientos'}
       </Text>
     </>
   );

@@ -58,7 +58,12 @@ export const RestaurantDetailScreen: React.FC = () => {
   const route = useRoute<RouteType>();
   const navigation = useNavigation<NavType>();
   const insets = useSafeAreaInsets();
-  const { restaurantId, restaurantName, coverUrl } = route.params;
+  const { restaurantId, restaurantName, restaurantType, coverUrl } = route.params;
+
+  const isRestaurant = !restaurantType || restaurantType === 'RESTAURANT' || restaurantType === 'RESTAURANTE';
+  const notesPlaceholder = isRestaurant 
+    ? 'Ej: sin cebolla, extra picante...' 
+    : 'Ej: maduros, verdes, especificaciones...';
   const { items, categories, loading, error } = useRestaurantMenu(restaurantId);
   const { addItem, itemCount, itemsTotal, cart } = useCart();
 
@@ -408,7 +413,7 @@ export const RestaurantDetailScreen: React.FC = () => {
                   <Text style={styles.notesLabel}>Notas especiales</Text>
                   <TextInput
                     style={styles.notesInput}
-                    placeholder="Ej: sin cebolla, extra picante..."
+                    placeholder={notesPlaceholder}
                     placeholderTextColor={colors['ink-hint']}
                     value={notes}
                     onChangeText={setNotes}
@@ -418,7 +423,10 @@ export const RestaurantDetailScreen: React.FC = () => {
 
                 {/* Quantity */}
                 <View style={styles.quantityRow}>
-                  <Text style={styles.quantityLabel}>Cantidad</Text>
+                  <View>
+                    <Text style={styles.quantityLabel}>Cantidad / Unidades</Text>
+                    <Text style={{ fontFamily: fonts.outfit.regular, fontSize: 11, color: colors['ink-muted'], marginTop: 2 }}>(Ej: 1 kilo, 1 pieza según el producto)</Text>
+                  </View>
                   <View style={styles.quantityControls}>
                     <TouchableOpacity
                       style={[styles.qtyBtn, quantity <= 1 && styles.qtyBtnDisabled]}
