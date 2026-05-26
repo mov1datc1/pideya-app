@@ -10,12 +10,12 @@ const CACHE_KEY = '@pideya/commission_tiers';
 
 /** Default tiers — matches rancho_eats admin defaults */
 const DEFAULT_TIERS: CommissionTier[] = [
-  { min: 0, max: 100, fee: 8 },
-  { min: 100, max: 150, fee: 10 },
-  { min: 150, max: 200, fee: 12 },
-  { min: 200, max: 300, fee: 15 },
-  { min: 300, max: 500, fee: 18 },
-  { min: 500, max: 999999, fee: 20 },
+  { up_to: 100, fee: 8 },
+  { up_to: 150, fee: 10 },
+  { up_to: 200, fee: 12 },
+  { up_to: 300, fee: 15 },
+  { up_to: 500, fee: 18 },
+  { up_to: null, fee: 20 },
 ];
 
 /**
@@ -59,17 +59,17 @@ export const calculateCommission = (
   subtotal: number,
   tiers: CommissionTier[],
 ): number => {
-  if (!tiers || tiers.length === 0) return 0;
+  if (!tiers || tiers.length === 0 || subtotal <= 0) return 0;
 
-  // Sort tiers by min ascending
-  const sorted = [...tiers].sort((a, b) => a.min - b.min);
-  const minFee = sorted[0].fee;
-  const maxFee = sorted[sorted.length - 1].fee;
+  // Sort tiers by up_to ascending (null / Infinity at the end)
+  const sorted = [...tiers].sort((a, b) => (a.up_to ?? Infinity) - (b.up_to ?? Infinity));
+  
+  for (const tier of sorted) {
+    if (tier.up_to === null || subtotal <= tier.up_to) {
+      return Math.round(tier.fee);
+    }
+  }
 
-  // Find matching tier
-  const tier = sorted.find((t) => subtotal >= t.min && subtotal < t.max);
-  const fee = tier ? tier.fee : maxFee;
-
-  // Clamp and round
-  return Math.round(Math.max(minFee, Math.min(maxFee, fee)));
+  // Fallback to the last tier's fee
+  return Math.round(sorted[sorted.length - 1].fee);
 };

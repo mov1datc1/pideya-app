@@ -5,6 +5,8 @@ import { AgaveIcon } from '../../components/branding/AgaveIcon';
 import { Logo } from '../../components/branding/Logo';
 import { colors, spacing } from '../../theme';
 import { AuthStackParamList } from '../../types/navigation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TERMS_ACCEPTED_KEY } from './TermsScreen';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Splash'>;
 
@@ -34,8 +36,13 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
         duration: 1200,
         useNativeDriver: false,
       }),
-    ]).start(() => {
-      navigation.replace('Onboarding');
+    ]).start(async () => {
+      const accepted = await AsyncStorage.getItem(TERMS_ACCEPTED_KEY);
+      if (accepted === 'true') {
+        navigation.replace('Login');
+      } else {
+        navigation.replace('Terms');
+      }
     });
   }, []);
 

@@ -4,7 +4,6 @@
 
 export type AuthStackParamList = {
   Splash: undefined;
-  Onboarding: undefined;
   Terms: undefined;
   Login: undefined;
   Register: undefined;
@@ -20,6 +19,7 @@ export type MainTabParamList = {
 };
 
 export type RootStackParamList = {
+  Onboarding: { onComplete: () => void };
   Auth: undefined;
   CompleteProfile: undefined;
   Main: undefined;

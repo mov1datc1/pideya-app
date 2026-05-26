@@ -5,15 +5,15 @@
 
 // ── Enums (coinciden con los tipos de PostgreSQL) ──────────────
 
-export type FoodType =
-  | 'CARNES'
-  | 'BIRRIA'
-  | 'TACOS'
-  | 'POLLOS'
-  | 'MARISCOS'
-  | 'CORRIDA'
-  | 'ANTOJITOS'
-  | 'OTRO';
+export type FoodType = string;
+
+export interface AppCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  sort_order: number;
+  is_active: boolean;
+}
 
 export type RestaurantStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED';
 
@@ -30,8 +30,7 @@ export type PaymentMethod = 'cash' | 'oxxo' | 'card';
 export type DeliveryType = 'delivery' | 'pickup';
 
 export interface CommissionTier {
-  min: number;
-  max: number;
+  up_to: number | null;
   fee: number;
 }
 

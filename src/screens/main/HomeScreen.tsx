@@ -26,8 +26,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { useOrders } from '../../hooks/useOrders';
 import * as addressService from '../../services/addresses';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
+import { supabase } from '../../services/supabase';
 import type { RootStackParamList } from '../../types/navigation';
-import type { Restaurant, FoodType, UserAddress } from '../../types/database';
+import type { Restaurant, FoodType, UserAddress, AppCategory } from '../../types/database';
 
 /** Haversine distance in km between two lat/lng points */
 const haversineKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -42,26 +43,42 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH * 0.72;
 const CAROUSEL_CARD_GAP = 12;
 
-// Category icons with fun emojis for Los Altos de Jalisco food
-const CATEGORIES: { label: string; value: FoodType | 'ALL'; emoji: string }[] = [
-  { label: 'Todos', value: 'ALL', emoji: '🍽️' },
-  { label: 'Tacos', value: 'TACOS', emoji: '🌮' },
-  { label: 'Birria', value: 'BIRRIA', emoji: '🥘' },
-  { label: 'Carnes', value: 'CARNES', emoji: '🥩' },
-  { label: 'Pollos', value: 'POLLOS', emoji: '🍗' },
-  { label: 'Mariscos', value: 'MARISCOS', emoji: '🦐' },
-  { label: 'Corrida', value: 'CORRIDA', emoji: '🍲' },
-  { label: 'Antojitos', value: 'ANTOJITOS', emoji: '🫔' },
-];
+// Dynamic categories will be fetched from the DB
+// CATEGORIES array is removed
 
 export const HomeScreen: React.FC = () => {
   const { profile } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { restaurants, loading, error, search } = useRestaurants();
-  const [selectedType, setSelectedType] = useState<FoodType | 'ALL'>('ALL');
+  const [appCategories, setAppCategories] = useState<{ label: string; value: string; emoji: string }[]>([{ label: 'Todos', value: 'ALL', emoji: '🛍️' }]);
+  const [selectedType, setSelectedType] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const { activeOrders } = useOrders(profile?.phone ?? '');
   const activeOrder = activeOrders[0] ?? null;
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data } = await supabase
+          .from('app_categories')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+        
+        if (data && data.length > 0) {
+          const mapped = data.map((c: AppCategory) => ({
+            label: c.name,
+            value: c.name,
+            emoji: c.emoji
+          }));
+          setAppCategories([{ label: 'Todos', value: 'ALL', emoji: '🛍️' }, ...mapped]);
+        }
+      } catch (e) {
+        console.warn('Error fetching categories:', e);
+      }
+    };
+    void fetchCategories();
+  }, []);
 
   // ── Location state ──
   const [userLat, setUserLat] = useState(0);
@@ -350,7 +367,7 @@ export const HomeScreen: React.FC = () => {
         <Ionicons name="search" size={18} color={colors['ink-hint']} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar restaurante..."
+          placeholder="Buscar establecimiento..."
           placeholderTextColor={colors['ink-hint']}
           value={searchQuery}
           onChangeText={handleSearch}
@@ -368,7 +385,7 @@ export const HomeScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoryRow}
       >
-        {CATEGORIES.map((cat) => {
+        {appCategories.map((cat) => {
           const isActive = selectedType === cat.value;
           return (
             <TouchableOpacity

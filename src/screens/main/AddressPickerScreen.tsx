@@ -9,6 +9,7 @@ import {
   Keyboard,
   Platform,
   Dimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import MapView, { Marker, Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -223,52 +224,58 @@ export const AddressPickerScreen: React.FC = () => {
       </TouchableOpacity>
 
       {/* Bottom card */}
-      <View style={[styles.bottomCard, { paddingBottom: insets.bottom + 16 }]}>
-        {/* Address display */}
-        <View style={styles.addressRow}>
-          <View style={styles.addressDot}>
-            <Ionicons name="location" size={20} color={colors.white} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        style={styles.keyboardAvoid}
+        pointerEvents="box-none"
+      >
+        <View style={[styles.bottomCard, { paddingBottom: insets.bottom + 16 }]}>
+          {/* Address display */}
+          <View style={styles.addressRow}>
+            <View style={styles.addressDot}>
+              <Ionicons name="location" size={20} color={colors.white} />
+            </View>
+            <View style={styles.addressInfo}>
+              {loadingGeocode ? (
+                <ActivityIndicator size="small" color={colors.agave} />
+              ) : (
+                <>
+                  <Text style={styles.addressMain} numberOfLines={2}>
+                    {reverseAddress || 'Mueve el mapa para seleccionar'}
+                  </Text>
+                  <Text style={styles.addressHint}>
+                    Ajusta el pin a la ubicacion exacta de entrega
+                  </Text>
+                </>
+              )}
+            </View>
           </View>
-          <View style={styles.addressInfo}>
-            {loadingGeocode ? (
-              <ActivityIndicator size="small" color={colors.agave} />
-            ) : (
-              <>
-                <Text style={styles.addressMain} numberOfLines={2}>
-                  {reverseAddress || 'Mueve el mapa para seleccionar'}
-                </Text>
-                <Text style={styles.addressHint}>
-                  Ajusta el pin a la ubicacion exacta de entrega
-                </Text>
-              </>
-            )}
-          </View>
+
+          {/* Editable address + reference */}
+          <TextInput
+            style={styles.editableAddress}
+            placeholder="Confirma o edita la direccion"
+            placeholderTextColor={colors['ink-hint']}
+            value={addressText}
+            onChangeText={setAddressText}
+            multiline
+          />
+
+          {/* Confirm button */}
+          <TouchableOpacity
+            style={[
+              styles.confirmBtn,
+              (!addressText.trim() && !reverseAddress) && styles.confirmBtnDisabled,
+            ]}
+            onPress={handleConfirm}
+            activeOpacity={0.9}
+            disabled={!addressText.trim() && !reverseAddress}
+          >
+            <Ionicons name="checkmark-circle" size={22} color={colors.white} />
+            <Text style={styles.confirmBtnText}>Confirmar ubicacion</Text>
+          </TouchableOpacity>
         </View>
-
-        {/* Editable address + reference */}
-        <TextInput
-          style={styles.editableAddress}
-          placeholder="Confirma o edita la direccion"
-          placeholderTextColor={colors['ink-hint']}
-          value={addressText}
-          onChangeText={setAddressText}
-          multiline
-        />
-
-        {/* Confirm button */}
-        <TouchableOpacity
-          style={[
-            styles.confirmBtn,
-            (!addressText.trim() && !reverseAddress) && styles.confirmBtnDisabled,
-          ]}
-          onPress={handleConfirm}
-          activeOpacity={0.9}
-          disabled={!addressText.trim() && !reverseAddress}
-        >
-          <Ionicons name="checkmark-circle" size={22} color={colors.white} />
-          <Text style={styles.confirmBtnText}>Confirmar ubicacion</Text>
-        </TouchableOpacity>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -377,11 +384,14 @@ const styles = StyleSheet.create({
   },
 
   // ── Bottom card ──
-  bottomCard: {
+  keyboardAvoid: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    justifyContent: 'flex-end',
+  },
+  bottomCard: {
     backgroundColor: colors.white,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,

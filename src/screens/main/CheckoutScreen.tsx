@@ -75,6 +75,8 @@ export const CheckoutScreen: React.FC = () => {
         setSelectedAddressId(def.id);
         setAddressText(def.address_text);
         setLocationNote(def.reference || '');
+        setAddressLat(def.latitude);
+        setAddressLng(def.longitude);
       } else if (!addrs.length) {
         setShowNewAddress(true);
       }
@@ -204,8 +206,8 @@ export const CheckoutScreen: React.FC = () => {
         restaurant_id: cart.restaurant_id,
         client_name: profile?.full_name || 'Cliente',
         client_phone: profile?.phone || '',
-        client_lat: isPickup ? 0 : (addressLat || 0),
-        client_lng: isPickup ? 0 : (addressLng || 0),
+        client_lat: isPickup ? 0 : (selectedAddress?.latitude || addressLat || 0),
+        client_lng: isPickup ? 0 : (selectedAddress?.longitude || addressLng || 0),
         client_location_note: isPickup ? 'PICKUP — Recoger en local' : (locationNote || undefined),
         items: orderItems,
         subtotal: itemsTotal,
