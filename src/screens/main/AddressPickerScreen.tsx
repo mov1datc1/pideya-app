@@ -225,7 +225,7 @@ export const AddressPickerScreen: React.FC = () => {
 
       {/* Bottom card */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoid}
         pointerEvents="box-none"
       >
