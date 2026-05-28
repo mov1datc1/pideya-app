@@ -58,6 +58,8 @@ export const AddressPickerScreen: React.FC = () => {
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [loadingGeocode, setLoadingGeocode] = useState(false);
 
+  const isInitialLoad = useRef(true);
+
   // Reverse geocode when pin moves
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
     setLoadingGeocode(true);
@@ -73,12 +75,15 @@ export const AddressPickerScreen: React.FC = () => {
         ].filter(Boolean);
         const text = parts.join(', ') || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
         setReverseAddress(text);
-        if (!addressText) setAddressText(text);
+        if (!addressText || !isInitialLoad.current) {
+          setAddressText(text);
+        }
       }
     } catch {
       setReverseAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
     } finally {
       setLoadingGeocode(false);
+      isInitialLoad.current = false;
     }
   }, [addressText]);
 
