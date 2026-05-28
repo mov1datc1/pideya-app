@@ -421,11 +421,10 @@ export const RestaurantDetailScreen: React.FC = () => {
                   />
                 </View>
 
-                {/* Quantity */}
                 <View style={styles.quantityRow}>
-                  <View>
+                  <View style={{ flex: 1, paddingRight: 16 }}>
                     <Text style={styles.quantityLabel}>Cantidad / Unidades</Text>
-                    <Text style={{ fontFamily: fonts.outfit.regular, fontSize: 11, color: colors['ink-muted'], marginTop: 2 }}>(Ej: 1 kilo, 1 pieza según el producto)</Text>
+                    <Text style={{ fontFamily: fonts.outfit.regular, fontSize: 11, color: colors['ink-muted'], marginTop: 2, flexWrap: 'wrap' }}>(Ej: 1 kilo, 1 pieza según el producto)</Text>
                   </View>
                   <View style={styles.quantityControls}>
                     <TouchableOpacity
@@ -862,7 +861,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.cloud,
   },
   quantityLabel: {
-    ...textStyles.h3,
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 16,
     color: colors.ink,
   },
   quantityControls: {
