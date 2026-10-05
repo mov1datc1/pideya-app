@@ -86,7 +86,7 @@ export const getFlowTypeForRestaurant = async (restaurantId: string, strict = fa
       .select('type')
       .eq('id', restaurantId)
       .single();
-    
+
     if (restaurantError) throw restaurantError;
     if (!restaurant?.type) throw new Error('No se pudo verificar el tipo de establecimiento');
     // Prepared food never offers grocery substitutions, even with inconsistent metadata.

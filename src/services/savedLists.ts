@@ -82,7 +82,7 @@ export const autoSaveFromOrder = async (
     .select('id')
     .eq('source_order_id', order.id)
     .limit(1);
-  
+
   if (existing && existing.length > 0) return;
 
   // Keep only last 10 auto-saved lists
@@ -93,7 +93,7 @@ export const autoSaveFromOrder = async (
     .eq('restaurant_id', order.restaurant_id)
     .eq('is_favorite', false)
     .order('created_at', { ascending: false });
-  
+
   if (allLists && allLists.length >= 10) {
     const toDelete = allLists.slice(9).map(l => l.id);
     if (toDelete.length > 0) {
@@ -102,7 +102,7 @@ export const autoSaveFromOrder = async (
   }
 
   const now = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
-  
+
   await supabase.from('saved_lists').insert({
     client_phone: order.client_phone,
     restaurant_id: order.restaurant_id,

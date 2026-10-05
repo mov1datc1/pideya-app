@@ -76,4 +76,3 @@
 | Fecha | Version | vCode | Notas |
 |-------|---------|-------|-------|
 | Jul 2026 | 1.0.5 | 7 | Versión estable actual en Play Store |
-
