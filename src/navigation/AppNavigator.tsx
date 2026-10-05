@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthStack } from './AuthStack';
+import { SavedListsScreen } from '../screens/main/SavedListsScreen';
 import { BottomTabs } from './BottomTabs';
 import { RestaurantDetailScreen } from '../screens/main/RestaurantDetailScreen';
 import { CartScreen } from '../screens/main/CartScreen';
@@ -65,6 +66,7 @@ export const AppNavigator: React.FC = () => {
             <>
               <RootStack.Screen name="Main" component={BottomTabs} />
               <RootStack.Screen name="RestaurantDetail" component={RestaurantDetailScreen} />
+              <RootStack.Screen name="SavedLists" component={SavedListsScreen} />
               <RootStack.Screen name="Cart" component={CartScreen} />
               <RootStack.Screen name="Checkout" component={CheckoutScreen} />
               <RootStack.Screen name="OrderStatus" component={OrderStatusScreen} />

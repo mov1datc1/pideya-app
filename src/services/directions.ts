@@ -4,6 +4,7 @@
  */
 
 import Constants from 'expo-constants';
+import { toCoordinate } from '../utils/coordinates';
 
 const GOOGLE_MAPS_KEY =
   Constants.expoConfig?.ios?.config?.googleMapsApiKey ||
@@ -79,11 +80,14 @@ export async function getDirectionsRoute(
   destLat: number,
   destLng: number,
 ): Promise<RouteResult | null> {
+  if (!toCoordinate(originLat, originLng) || !toCoordinate(destLat, destLng)) return null;
   if (!GOOGLE_MAPS_KEY) {
     console.warn('Directions API: No API key found');
     return null;
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
     const url =
       `https://maps.googleapis.com/maps/api/directions/json?` +
@@ -93,10 +97,11 @@ export async function getDirectionsRoute(
       `&language=es` +
       `&key=${GOOGLE_MAPS_KEY}`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return null;
     const data = await response.json();
 
-    if (data.status !== 'OK' || !data.routes?.[0]) {
+    if (data.status !== 'OK' || !data.routes?.[0]?.legs?.[0] || !data.routes?.[0]?.overview_polyline?.points) {
       console.warn('Directions API error:', data.status, data.error_message);
       return null;
     }
@@ -115,5 +120,7 @@ export async function getDirectionsRoute(
   } catch (error) {
     console.warn('Directions API fetch error:', error);
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }

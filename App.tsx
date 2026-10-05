@@ -17,6 +17,7 @@ import {
   Outfit_700Bold,
 } from '@expo-google-fonts/outfit';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { FirstOrderGuideProvider } from './src/components/guidedTour/FirstOrderGuide';
 import { CartProvider } from './src/hooks/useCart';
 import { useNotificationSetup } from './src/hooks/useNotifications';
 import { colors } from './src/theme';
@@ -53,7 +54,7 @@ export default function App() {
       <CartProvider>
         <NotificationSetup />
         <StatusBar style="auto" />
-        <AppNavigator />
+        <FirstOrderGuideProvider><AppNavigator /></FirstOrderGuideProvider>
       </CartProvider>
     </SafeAreaProvider>
   );

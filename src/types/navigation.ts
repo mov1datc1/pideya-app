@@ -32,10 +32,13 @@ export type RootStackParamList = {
   Rating: { orderId: string };
   Address: undefined;
   AddressPicker: {
+    onboarding?: boolean;
+    locateOnOpen?: boolean;
     latitude?: number;
     longitude?: number;
     currentAddress?: string;
     onSelect?: (data: { address: string; latitude: number; longitude: number }) => void;
   };
   OrderHistory: undefined;
+  SavedLists: { restaurantId: string; restaurantName: string } | undefined;
 };

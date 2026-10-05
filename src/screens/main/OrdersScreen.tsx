@@ -12,33 +12,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
-import { Card } from '../../components/ui/Card';
 import { useAuth } from '../../hooks/useAuth';
 import { useOrders } from '../../hooks/useOrders';
+import { useCart } from '../../hooks/useCart';
 import { cancelOrder } from '../../services/orders';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import { formatPrice } from '../../utils/formatPrice';
 import type { Order } from '../../types/database';
 import type { RootStackParamList } from '../../types/navigation';
 
+import { ACTIVE_ORDER_STATUSES as ACTIVE_STATUSES, ORDER_STATUS_LABELS as STATUS_LABELS } from '../../utils/orderStatus';
+
 type Tab = 'active' | 'history';
 
-const ACTIVE_STATUSES = ['PENDING', 'ACCEPTED', 'ON_THE_WAY'];
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pendiente',
-  ACCEPTED: 'Preparando',
-  ON_THE_WAY: 'En camino',
-  DELIVERED: 'Entregado',
-  REJECTED: 'Rechazado',
-  CANCELLED: 'Cancelado',
-};
-
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: colors.warning,
+  PENDING: '#F59E0B',
   ACCEPTED: colors.agave,
-  ON_THE_WAY: colors.tierra,
-  DELIVERED: colors['agave-dark'],
+  PICKING: colors.agave,
+  ADJUSTED: '#F59E0B',
+  ON_THE_WAY: '#3B82F6',
+  DELIVERED: '#10B981',
   REJECTED: colors.error,
   CANCELLED: colors['ink-muted'],
 };
@@ -46,7 +39,8 @@ const STATUS_COLORS: Record<string, string> = {
 export const OrdersScreen: React.FC = () => {
   const { profile } = useAuth();
   const phone = profile?.phone ?? '';
-  const { orders, loading, error, refresh } = useOrders(phone);
+  const { orders, loading, error, refresh, loadMore, hasMore, loadingMore } = useOrders(phone);
+  const { addItem, clearCart } = useCart();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('active');
@@ -64,30 +58,24 @@ export const OrdersScreen: React.FC = () => {
   const displayedOrders = tab === 'active' ? activeOrders : historyOrders;
 
   const handleCancel = (order: Order) => {
-    // Cash payment + already accepted = no cancel
     const paymentMethod = order.payment_method;
     const currentStatus = order.status;
+
     if (paymentMethod === 'cash' && currentStatus !== 'PENDING') {
       Alert.alert(
         'No se puede cancelar',
-        'Los pedidos con pago en efectivo no pueden cancelarse despues de ser aceptados por el restaurante.',
+        'Los pedidos con pago en efectivo no pueden cancelarse después de ser aceptados por el establecimiento.',
       );
       return;
     }
 
-    // Card payment + accepted = charge 30%
-    const isAccepted = currentStatus !== 'PENDING';
-    const cardWarning = paymentMethod === 'card' && isAccepted
-      ? '\n\nSe aplicara un cargo del 30% del costo del pedido (sin envio).'
-      : '';
-
     Alert.alert(
       'Cancelar pedido',
-      `Seguro que quieres cancelar el pedido #${order.order_number}?${cardWarning}`,
+      `¿Seguro que quieres cancelar el pedido #${order.order_number}?`,
       [
         { text: 'No', style: 'cancel' },
         {
-          text: 'Si, cancelar',
+          text: 'Sí, cancelar',
           style: 'destructive',
           onPress: async () => {
             setCancellingId(order.id);
@@ -106,81 +94,164 @@ export const OrdersScreen: React.FC = () => {
     );
   };
 
-  const navigateToOrder = (order: Order) => {
+  const handleReorder = (order: Order) => {
+    const rName = (order as any).restaurant_name || (order as any).restaurants?.name || 'Establecimiento';
+    Alert.alert(
+      'Repetir Pedido',
+      `¿Deseas agregar los productos de tu pedido en "${rName}" al carrito?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Agregar al Carrito',
+          onPress: () => {
+            clearCart();
+            order.items.forEach((item) => {
+              addItem(
+                order.restaurant_id,
+                rName,
+                {
+                  id: item.id,
+                  restaurant_id: order.restaurant_id,
+                  name: item.name,
+                  price: item.price,
+                  created_at: new Date().toISOString(),
+                } as any,
+                item.quantity,
+                item.notes || '',
+                [],
+              );
+            });
+            navigation.navigate('Cart');
+          },
+        },
+      ],
+    );
+  };
+
+  const navigateToOrderTrack = (order: Order) => {
     navigation.navigate('OrderStatus', { orderId: order.id });
   };
 
-  /** Can this order be cancelled? */
-  const canCancel = (order: Order) => {
-    if (order.status === 'PENDING') return true;
-    const paymentMethod = order.payment_method;
-    // Cash: only PENDING can cancel
-    if (paymentMethod === 'cash') return false;
-    // Card: can cancel up to ON_THE_WAY (with 30% fee)
-    if (paymentMethod === 'card' && ACTIVE_STATUSES.includes(order.status)) return true;
-    return false;
+  const getItemsSummary = (items: any) => {
+    if (!items) return '';
+    try {
+      const list = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+      return list.map((i: any) => `${i.quantity || 1}x ${i.name || i.title || 'Producto'}`).join(', ');
+    } catch {
+      return '';
+    }
   };
 
-  const renderOrder = ({ item }: { item: Order }) => (
-    <TouchableOpacity activeOpacity={0.8} onPress={() => navigateToOrder(item)}>
-      <Card style={styles.orderCard}>
-        <View style={styles.orderHeader}>
-          <View>
-            <Text style={styles.orderNumber}>{item.reference_code}</Text>
-            <Text style={styles.orderNumSub}>Pedido #{item.order_number}</Text>
-          </View>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: STATUS_COLORS[item.status] ?? colors['ink-muted'] },
-            ]}
-          >
-            <Text style={styles.statusText}>
-              {STATUS_LABELS[item.status] ?? item.status}
-            </Text>
-          </View>
+  const renderActiveOrder = (order: Order) => (
+    <View key={order.id} style={styles.activeOrderCard}>
+      <View style={styles.cardHeaderRow}>
+        <View style={styles.storeBadgeCircle}>
+          <Ionicons name="flash-sharp" size={20} color={colors.agave} />
         </View>
-        <Text style={styles.orderItems} numberOfLines={2}>
-          {item.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
-        </Text>
-        <View style={styles.orderFooter}>
-          <Text style={styles.orderTotal}>{formatPrice(item.total)}</Text>
-          <Text style={styles.orderDate}>
-            {new Date(item.created_at).toLocaleDateString('es-MX')}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.storeNameTitle}>
+            {(order as any).restaurant_name || (order as any).restaurants?.name || 'Establecimiento'}
+          </Text>
+          <Text style={styles.orderRefSub}>Pedido #{order.order_number}</Text>
+        </View>
+
+        <View style={[styles.statusChipActive, { backgroundColor: (STATUS_COLORS[order.status] ?? colors.agave) + '20' }]}>
+          <View style={[styles.pulsingDot, { backgroundColor: STATUS_COLORS[order.status] }]} />
+          <Text style={[styles.statusChipActiveText, { color: STATUS_COLORS[order.status] }]}>
+            {STATUS_LABELS[order.status] ?? order.status}
           </Text>
         </View>
-        {/* Cancel button — only for active orders with appropriate logic */}
-        {tab === 'active' && canCancel(item) && (
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            onPress={(e) => { e.stopPropagation?.(); handleCancel(item); }}
-            disabled={cancellingId === item.id}
-          >
-            {cancellingId === item.id ? (
-              <ActivityIndicator size="small" color={colors.error} />
-            ) : (
-              <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
-            )}
-          </TouchableOpacity>
-        )}
-        {/* Navigate arrow for history */}
-        {tab === 'history' && (
-          <View style={styles.arrowRow}>
-            <Text style={styles.detailHint}>Ver detalle</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors['ink-hint']} />
-          </View>
-        )}
-      </Card>
-    </TouchableOpacity>
+      </View>
+
+      <Text style={styles.itemSummaryText} numberOfLines={2}>
+        {getItemsSummary(order.items)}
+      </Text>
+
+      <View style={styles.cardFooterRow}>
+        <Text style={styles.orderPriceTotal}>{formatPrice(order.total)}</Text>
+        <Text style={styles.orderTimeText}>
+          {new Date(order.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </View>
+
+      {/* Main Action: Rastrear en Vivo */}
+      <TouchableOpacity
+        style={styles.trackLiveBtn}
+        onPress={() => navigateToOrderTrack(order)}
+        activeOpacity={0.88}
+      >
+        <Ionicons name="navigate-sharp" size={18} color={colors.white} />
+        <Text style={styles.trackLiveBtnText}>Rastrear en Vivo</Text>
+      </TouchableOpacity>
+
+      {order.status === 'PENDING' && (
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          onPress={() => handleCancel(order)}
+          disabled={cancellingId === order.id}
+        >
+          {cancellingId === order.id ? (
+            <ActivityIndicator size="small" color={colors.error} />
+          ) : (
+            <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
+          )}
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const renderHistoryOrder = ({ item }: { item: Order }) => (
+    <View style={styles.historyOrderCard}>
+      <View style={styles.cardHeaderRow}>
+        <View style={styles.storeBadgeCircleGray}>
+          <Ionicons name="basket-outline" size={20} color={colors['ink-secondary']} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.storeNameTitle}>
+            {(item as any).restaurant_name || (item as any).restaurants?.name || 'Establecimiento'}
+          </Text>
+          <Text style={styles.orderDateSub}>
+            {new Date(item.created_at).toLocaleDateString('es-MX', {
+              day: 'numeric',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+        </View>
+
+        <View style={styles.statusChipHistory}>
+          <Text style={styles.statusChipHistoryText}>
+            {STATUS_LABELS[item.status] ?? item.status}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.itemSummaryText} numberOfLines={2}>
+        {getItemsSummary(item.items)}
+      </Text>
+
+      <View style={styles.historyFooterRow}>
+        <Text style={styles.orderPriceTotal}>{formatPrice(item.total)}</Text>
+
+        <TouchableOpacity
+          style={styles.reorderBtn}
+          onPress={() => handleReorder(item)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="refresh-sharp" size={16} color={colors.agave} />
+          <Text style={styles.reorderBtnText}>Repetir Pedido</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   if (!phone) {
     return (
       <ScreenWrapper>
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>
-            Inicia sesion para ver tus pedidos
-          </Text>
+        <View style={styles.emptyContainer}>
+          <Ionicons name="receipt-outline" size={48} color={colors['ink-hint']} />
+          <Text style={styles.emptyTitle}>Inicia sesión para ver tus pedidos</Text>
         </View>
       </ScreenWrapper>
     );
@@ -188,58 +259,55 @@ export const OrdersScreen: React.FC = () => {
 
   return (
     <ScreenWrapper>
-      <Text style={styles.title}>Mis pedidos</Text>
+      <Text style={styles.screenTitle}>Mis Pedidos</Text>
 
-      {/* Tabs */}
-      <View style={styles.tabRow}>
+      {/* Filter Tabs */}
+      <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, tab === 'active' && styles.tabActive]}
+          style={[styles.tabBtn, tab === 'active' && styles.tabBtnActive]}
           onPress={() => setTab('active')}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.tabText, tab === 'active' && styles.tabTextActive]}>
-            Activos
+          <Text style={[styles.tabBtnText, tab === 'active' && styles.tabBtnTextActive]}>
+            Activos ({activeOrders.length})
           </Text>
-          {activeOrders.length > 0 && (
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>{activeOrders.length}</Text>
-            </View>
-          )}
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={[styles.tab, tab === 'history' && styles.tabActive]}
+          style={[styles.tabBtn, tab === 'history' && styles.tabBtnActive]}
           onPress={() => setTab('history')}
+          activeOpacity={0.8}
         >
-          <Text style={[styles.tabText, tab === 'history' && styles.tabTextActive]}>
-            Historial
+          <Text style={[styles.tabBtnText, tab === 'history' && styles.tabBtnTextActive]}>
+            Historial ({historyOrders.length})
           </Text>
         </TouchableOpacity>
       </View>
 
+      {error && <View accessibilityRole="alert" style={{ padding: spacing.md }}>
+        <Text style={{ color: colors.error }}>{error}</Text>
+        <TouchableOpacity onPress={refresh} accessibilityRole="button"><Text style={{ color: colors.agave, paddingVertical: spacing.md }}>Reintentar</Text></TouchableOpacity>
+      </View>}
+      {/* Orders List */}
       {loading ? (
-        <ActivityIndicator size="large" color={colors.agave} style={styles.loader} />
-      ) : error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <ActivityIndicator size="large" color={colors.agave} style={{ marginTop: 40 }} />
+      ) : displayedOrders.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="cart-outline" size={48} color={colors['ink-hint']} />
+          <Text style={styles.emptyTitle}>
+            {tab === 'active' ? 'No tienes pedidos activos' : 'No tienes pedidos anteriores'}
+          </Text>
+        </View>
       ) : (
         <FlatList
+          ListFooterComponent={tab === 'history' && hasMore ? <TouchableOpacity onPress={loadMore} disabled={loadingMore} style={{ padding: spacing.lg }} accessibilityRole="button">
+            {loadingMore ? <ActivityIndicator color={colors.agave} /> : <Text style={{ color: colors.agave, textAlign: 'center' }}>Ver pedidos anteriores</Text>}
+          </TouchableOpacity> : null}
           data={displayedOrders}
-          renderItem={renderOrder}
+          renderItem={tab === 'active' ? ({ item }) => renderActiveOrder(item) : renderHistoryOrder}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons
-                name={tab === 'active' ? 'receipt-outline' : 'time-outline'}
-                size={48}
-                color={colors['ink-hint']}
-              />
-              <Text style={styles.emptyText}>
-                {tab === 'active'
-                  ? 'No tienes pedidos activos'
-                  : 'Aun no tienes pedidos anteriores'}
-              </Text>
-            </View>
-          }
+          contentContainerStyle={{ paddingBottom: 40 }}
         />
       )}
     </ScreenWrapper>
@@ -247,156 +315,204 @@ export const OrdersScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  title: {
-    ...textStyles.h1,
-    color: colors.ink,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  // Tabs
-  tabRow: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.cloud,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    gap: spacing.xs,
-  },
-  tabActive: {
-    borderBottomColor: colors.agave,
-  },
-  tabText: {
-    fontFamily: fonts.outfit.medium,
-    fontSize: 15,
-    color: colors['ink-muted'],
-  },
-  tabTextActive: {
-    fontFamily: fonts.outfit.semiBold,
-    color: colors.agave,
-  },
-  tabBadge: {
-    backgroundColor: colors.agave,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  tabBadgeText: {
+  screenTitle: {
     fontFamily: fonts.outfit.bold,
-    fontSize: 11,
-    color: colors.white,
-  },
-  // List
-  list: {
-    paddingBottom: spacing['4xl'],
-    gap: spacing.md,
-  },
-  orderCard: {
-    gap: spacing.sm,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  orderNumber: {
-    fontFamily: fonts.outfit.semiBold,
-    fontSize: 15,
+    fontSize: 22,
     color: colors.ink,
+    marginBottom: spacing.md,
   },
-  orderNumSub: {
-    fontFamily: fonts.outfit.regular,
-    fontSize: 11,
-    color: colors['ink-muted'],
-    marginTop: 1,
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.snow,
+    borderRadius: radius.md,
+    padding: 4,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.cloud,
   },
-  statusBadge: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: 6,
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: radius.sm,
   },
-  statusText: {
+  tabBtnActive: {
+    backgroundColor: colors.agave,
+  },
+  tabBtnText: {
     fontFamily: fonts.outfit.medium,
-    fontSize: 11,
-    color: colors.white,
-  },
-  orderItems: {
-    ...textStyles.caption,
+    fontSize: 13,
     color: colors['ink-secondary'],
   },
-  orderFooter: {
+  tabBtnTextActive: {
+    fontFamily: fonts.outfit.bold,
+    color: colors.white,
+  },
+  activeOrderCard: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 2,
+    borderColor: colors.agave,
+    elevation: 3,
+    shadowColor: '#2D8B7A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  historyOrderCard: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.cloud,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  storeBadgeCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors['agave-light'],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storeBadgeCircleGray: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.cloud,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  storeNameTitle: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  orderRefSub: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: colors['ink-muted'],
+  },
+  orderDateSub: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
+    color: colors['ink-muted'],
+  },
+  statusChipActive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  pulsingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusChipActiveText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 11,
+  },
+  statusChipHistory: {
+    backgroundColor: colors.snow,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cloud,
+  },
+  statusChipHistoryText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 11,
+    color: colors['ink-secondary'],
+  },
+  itemSummaryText: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 14,
+    color: colors['ink-secondary'],
+    marginBottom: spacing.md,
+    lineHeight: 20,
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  historyFooterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  orderTotal: {
-    fontFamily: fonts.playfair.semiBold,
-    fontSize: 17,
+  orderPriceTotal: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 18,
     color: colors.ink,
   },
-  orderDate: {
-    ...textStyles.caption,
+  orderTimeText: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 12,
     color: colors['ink-muted'],
   },
-  cancelBtn: {
-    height: 36,
-    borderRadius: radius.sm,
-    borderWidth: 1.5,
-    borderColor: colors.error,
-    justifyContent: 'center',
+  trackLiveBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.sm,
+    justifyContent: 'center',
+    gap: spacing.xs,
+    height: 48,
+    backgroundColor: colors.agave,
+    borderRadius: radius.md,
+  },
+  trackLiveBtnText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 15,
+    color: colors.white,
+  },
+  reorderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.sm,
+    backgroundColor: colors['agave-light'],
+    borderWidth: 1,
+    borderColor: colors.agave,
+  },
+  reorderBtnText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 13,
+    color: colors.agave,
+  },
+  cancelBtn: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    marginTop: 4,
   },
   cancelBtnText: {
-    fontFamily: fonts.outfit.semiBold,
+    fontFamily: fonts.outfit.medium,
     fontSize: 13,
     color: colors.error,
   },
-  arrowRow: {
-    flexDirection: 'row',
+  emptyContainer: {
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 4,
-    marginTop: spacing.xs,
-  },
-  detailHint: {
-    fontFamily: fonts.outfit.medium,
-    fontSize: 12,
-    color: colors['ink-hint'],
-  },
-  // Empty states
-  empty: {
-    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: spacing['4xl'],
+    paddingTop: 80,
     gap: spacing.md,
   },
-  emptyText: {
-    ...textStyles.body,
+  emptyTitle: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 15,
     color: colors['ink-muted'],
-    textAlign: 'center',
-    marginTop: spacing.sm,
-  },
-  loader: {
-    marginTop: spacing['4xl'],
-  },
-  errorText: {
-    ...textStyles.body,
-    color: colors.error,
-    textAlign: 'center',
-    marginTop: spacing['2xl'],
   },
 });

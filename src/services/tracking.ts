@@ -1,3 +1,4 @@
+import { realtimeChannelName } from '../utils/realtimeChannel';
 import { supabase } from './supabase';
 import type { DriverLocation, Order } from '../types/database';
 
@@ -10,7 +11,7 @@ export const subscribeToDriverLocation = (
   callback: (location: DriverLocation) => void,
 ) => {
   const channel = supabase
-    .channel(`driver-location-${driverId}`)
+    .channel(realtimeChannelName('driver-location', driverId))
     .on(
       'postgres_changes',
       {
@@ -68,7 +69,7 @@ export const subscribeToOrderTracking = (
   callback: (order: Order) => void,
 ) => {
   const channel = supabase
-    .channel(`order-tracking-${orderId}`)
+    .channel(realtimeChannelName('order-tracking', orderId))
     .on(
       'postgres_changes',
       {

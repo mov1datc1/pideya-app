@@ -15,15 +15,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FirstOrderGuideCard, useFirstOrderGuide } from '../../components/guidedTour/FirstOrderGuide';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { createOrder } from '../../services/orders';
+import { getFlowTypeForRestaurant, getPickingPreferences, savePickingPreferences } from '../../services/picking';
 import * as clientProfileService from '../../services/clientProfile';
 import * as addressService from '../../services/addresses';
 import { fetchCommissionTiers, calculateCommission } from '../../services/commission';
+import { parseAppError } from '../../utils/errorHandler';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
-import type { PaymentMethod, OrderItemJSON, UserAddress, CommissionTier, DeliveryType } from '../../types/database';
+import type { PaymentMethod, OrderItemJSON, UserAddress, CommissionTier, DeliveryType, PickingPreferences, FlowType } from '../../types/database';
+import { orderPickingPreferences } from '../../utils/pickingPreferences';
+import { DEFAULT_PICKING_PREFERENCES } from '../../types/database';
 
 type NavType = NativeStackNavigationProp<RootStackParamList>;
 
@@ -39,9 +44,10 @@ const TIP_OPTIONS = [0, 10, 20, 30, 50];
 
 
 export const CheckoutScreen: React.FC = () => {
+  const guide = useFirstOrderGuide();
   const navigation = useNavigation<NavType>();
   const insets = useSafeAreaInsets();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const {
     cart,
     itemsTotal,
@@ -53,6 +59,7 @@ export const CheckoutScreen: React.FC = () => {
     setPaysWith,
     clearCart,
   } = useCart();
+  useEffect(() => { if (guide.loaded && itemCount > 0) guide.advance('checkout'); }, [guide.loaded, guide.advance, itemCount]);
 
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -65,6 +72,69 @@ export const CheckoutScreen: React.FC = () => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showOrderItems, setShowOrderItems] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Picking preferences (only for picked/pharmacy flow)
+  const [flowType, setFlowType] = useState<FlowType>('prepared');
+  const [pickingPrefs, setPickingPrefs] = useState<PickingPreferences>(DEFAULT_PICKING_PREFERENCES);
+  const [rememberPrefs, setRememberPrefs] = useState(false);
+  const showPickingPrefs = flowType === 'picked' || flowType === 'pharmacy';
+
+  // Detect flow_type for this restaurant
+  useEffect(() => {
+    let active = true;
+    setFlowType('prepared');
+    if (cart.restaurant_id) {
+      getFlowTypeForRestaurant(cart.restaurant_id).then((ft) => {
+        if (active) setFlowType(ft as FlowType);
+      });
+    }
+    return () => { active = false; };
+  }, [cart.restaurant_id]);
+
+  // Load saved picking preferences
+  useEffect(() => {
+    const profileId = user?.id;
+    if (profileId && showPickingPrefs) {
+      getPickingPreferences(profileId).then((saved) => {
+        if (saved) setPickingPrefs(saved);
+      }).catch(() => {});
+    }
+  }, [user?.id, showPickingPrefs]);
+
+  // Commercial Exit Retention Popup
+  const [hasConfirmedLeave, setHasConfirmedLeave] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      if (submitting || hasConfirmedLeave) {
+        return;
+      }
+      e.preventDefault();
+
+      Alert.alert(
+        '¡Espera! Tu pedido está a un clic 🌮',
+        `¿Seguro que quieres salir? Los platillos de ${cart.restaurant_name || 'tu pedido'} están listos para ser preparados y enviados a tu domicilio.`,
+        [
+          {
+            text: 'Continuar con mi pedido',
+            style: 'default',
+            onPress: () => {},
+          },
+          {
+            text: 'Salir por ahora',
+            style: 'destructive',
+            onPress: () => {
+              setHasConfirmedLeave(true);
+              navigation.dispatch(e.data.action);
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation, submitting, hasConfirmedLeave, cart.restaurant_name]);
 
   // Load saved addresses
   useEffect(() => {
@@ -80,7 +150,7 @@ export const CheckoutScreen: React.FC = () => {
       } else if (!addrs.length) {
         setShowNewAddress(true);
       }
-    });
+    }).catch(() => { setShowNewAddress(true); });
   }, []);
 
   const selectAddress = (addr: UserAddress) => {
@@ -108,7 +178,7 @@ export const CheckoutScreen: React.FC = () => {
   const handleSaveAddress = async () => {
     if (!addressText.trim()) return;
     const newAddr = await addressService.addAddress({
-      user_id: profile?.full_name || 'local',
+      user_id: user?.id || '',
       label: addressLabel.trim() || 'Mi direccion',
       address_text: addressText.trim(),
       reference: locationNote.trim() || null,
@@ -178,6 +248,8 @@ export const CheckoutScreen: React.FC = () => {
 
     setSubmitting(true);
     try {
+      // Revalidate category before submitting, even if the user confirms before the initial lookup finishes.
+      const confirmedFlow = await getFlowTypeForRestaurant(cart.restaurant_id, true);
       // Check if user is blocked
       const phone = profile?.phone || '';
       if (phone) {
@@ -216,8 +288,16 @@ export const CheckoutScreen: React.FC = () => {
         delivery_type: cart.delivery_type,
         total,
         payment_method: cart.payment_method,
+        picking_preferences: orderPickingPreferences(confirmedFlow, pickingPrefs),
       });
 
+      // Save picking preferences if user opted in
+      const profId = user?.id;
+      if (rememberPrefs && profId && flowType === 'picked') {
+        savePickingPreferences(profId, pickingPrefs).catch(() => {});
+      }
+
+      guide.advance('done');
       clearCart();
       navigation.reset({
         index: 0,
@@ -227,7 +307,7 @@ export const CheckoutScreen: React.FC = () => {
         ],
       });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al crear pedido';
+      const message = parseAppError(err, 'Error al crear pedido');
       Alert.alert('Error', message);
     } finally {
       setSubmitting(false);
@@ -246,6 +326,7 @@ export const CheckoutScreen: React.FC = () => {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        <FirstOrderGuideCard stage="checkout" />
         {/* ── PICKUP / DELIVERY SELECTOR ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -387,6 +468,82 @@ export const CheckoutScreen: React.FC = () => {
           </View>
         )}
 
+        {/* ── PICKING PREFERENCES (only for picked/pharmacy) ── */}
+        {showPickingPrefs && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="basket-outline" size={20} color={colors.agave} />
+              <Text style={styles.sectionTitle}>Preferencias de Surtido</Text>
+            </View>
+            <Text style={{ ...textStyles.caption, color: colors['ink-secondary'], marginBottom: spacing.md }}>
+              Elige qué hacer si un producto no está disponible o hay menos cantidad.
+            </Text>
+
+            {flowType === 'pharmacy' ? <Text style={textStyles.body}>Si falta un producto o cambia la cantidad, la farmacia te consultará antes de hacer cualquier cambio.</Text> : <>
+            {/* On unavailable */}
+            <Text style={{ ...textStyles.label, marginBottom: spacing.xs, fontWeight: '700' }}>Si un producto no está disponible:</Text>
+            <View style={{ flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md, flexWrap: 'wrap' }}>
+              {[
+                { value: 'substitute' as const, label: '🔄 Sustituir', desc: 'Recomendado' },
+                { value: 'remove' as const, label: '❌ Quitar', desc: '' },
+                { value: 'ask_me' as const, label: '💬 Preguntarme', desc: '' },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[{
+                    flex: 1, minWidth: 90, padding: spacing.sm, borderRadius: radius.md,
+                    borderWidth: 2, alignItems: 'center',
+                    borderColor: pickingPrefs.on_unavailable === opt.value ? colors.agave : colors.cloud,
+                    backgroundColor: pickingPrefs.on_unavailable === opt.value ? colors.agave + '12' : colors.snow,
+                  }]}
+                  onPress={() => setPickingPrefs(p => ({ ...p, on_unavailable: opt.value }))}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: pickingPrefs.on_unavailable === opt.value ? colors.agave : colors.ink }}>
+                    {opt.label}
+                  </Text>
+                  {opt.desc ? <Text style={{ fontSize: 10, color: colors.agave, marginTop: 2 }}>{opt.desc}</Text> : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* On less quantity */}
+            <Text style={{ ...textStyles.label, marginBottom: spacing.xs, fontWeight: '700' }}>Si hay menos cantidad:</Text>
+            <View style={{ flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md, flexWrap: 'wrap' }}>
+              {[
+                { value: 'accept_available' as const, label: '✅ Aceptar disponible', desc: 'Recomendado' },
+                { value: 'remove' as const, label: '❌ Quitar', desc: '' },
+                { value: 'ask_me' as const, label: '💬 Preguntarme', desc: '' },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[{
+                    flex: 1, minWidth: 90, padding: spacing.sm, borderRadius: radius.md,
+                    borderWidth: 2, alignItems: 'center',
+                    borderColor: pickingPrefs.on_less_quantity === opt.value ? colors.agave : colors.cloud,
+                    backgroundColor: pickingPrefs.on_less_quantity === opt.value ? colors.agave + '12' : colors.snow,
+                  }]}
+                  onPress={() => setPickingPrefs(p => ({ ...p, on_less_quantity: opt.value }))}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: pickingPrefs.on_less_quantity === opt.value ? colors.agave : colors.ink }}>
+                    {opt.label}
+                  </Text>
+                  {opt.desc ? <Text style={{ fontSize: 10, color: colors.agave, marginTop: 2 }}>{opt.desc}</Text> : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Remember checkbox */}
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}
+              onPress={() => setRememberPrefs(!rememberPrefs)}
+            >
+              <Ionicons name={rememberPrefs ? 'checkbox' : 'square-outline'} size={22} color={colors.agave} />
+              <Text style={{ ...textStyles.body, color: colors['ink-secondary'] }}>Recordar para próximos pedidos</Text>
+            </TouchableOpacity>
+            </>}
+          </View>
+        )}
+
         {/* ── PAYMENT METHOD ── */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -400,7 +557,16 @@ export const CheckoutScreen: React.FC = () => {
                 <TouchableOpacity
                   key={opt.value}
                   style={[styles.paymentOption, isActive && styles.paymentOptionActive]}
-                  onPress={() => setPaymentMethod(opt.value)}
+                  onPress={() => {
+                    if (opt.value === 'card' || opt.value === 'oxxo') {
+                      Alert.alert(
+                        '¡Próximamente!',
+                        `El pago con ${opt.label} estará disponible muy pronto en PideYa. Por el momento, por favor selecciona pago en Efectivo.`
+                      );
+                    } else {
+                      setPaymentMethod(opt.value);
+                    }
+                  }}
                 >
                   <Ionicons
                     name={opt.icon as keyof typeof Ionicons.glyphMap}

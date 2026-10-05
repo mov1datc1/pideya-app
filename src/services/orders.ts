@@ -1,5 +1,7 @@
+import { realtimeChannelName } from '../utils/realtimeChannel';
 import { supabase } from './supabase';
-import type { Order, OrderItemJSON, OrderStatus, DeliveryType } from '../types/database';
+import { ACTIVE_ORDER_STATUSES } from '../utils/orderStatus';
+import type { Order, OrderItemJSON, OrderStatus, DeliveryType, PickingPreferences } from '../types/database';
 
 interface CreateOrderInput {
   restaurant_id: string;
@@ -15,13 +17,17 @@ interface CreateOrderInput {
   delivery_type: DeliveryType;
   total: number;
   payment_method?: string;
+  picking_preferences?: PickingPreferences;
 }
 
 export const createOrder = async (input: CreateOrderInput) => {
+  const { data: auth } = await supabase.auth.getSession();
+  if (!auth.session?.user.id) throw new Error('Inicia sesión para confirmar tu pedido');
   const { data, error } = await supabase
     .from('orders')
     .insert({
       ...input,
+      client_user_id: auth.session.user.id,
       status: 'PENDING' as OrderStatus,
     })
     .select()
@@ -47,13 +53,21 @@ export const getOrderById = async (id: string) => {
  * Historial de pedidos del cliente (por telefono).
  * La app web no usa user_id en orders — usa client_phone.
  */
-export const getOrderHistory = async (clientPhone: string) => {
+async function accountOrderFilter(clientPhone: string) {
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session?.user.id) throw new Error('Inicia sesión para ver tus pedidos');
+  const phone = JSON.stringify(clientPhone);
+  return `client_user_id.eq.${data.session.user.id},and(client_user_id.is.null,client_phone.eq.${phone})`;
+}
+
+export const getOrderHistory = async (clientPhone: string, offset = 0) => {
+  const filter = await accountOrderFilter(clientPhone);
   const { data, error } = await supabase
     .from('orders')
-    .select('*, restaurants(name, logo_url)')
-    .eq('client_phone', clientPhone)
+    .select('*, restaurants(name, logo_url, lat, lng)')
+    .or(filter)
     .order('created_at', { ascending: false })
-    .limit(50);
+    .range(offset, offset + 49);
   if (error) {
     console.error('[PideYa] getOrderHistory error:', JSON.stringify(error));
     throw error;
@@ -63,11 +77,12 @@ export const getOrderHistory = async (clientPhone: string) => {
 
 /** Pedidos activos (no finalizados) del cliente */
 export const getActiveOrders = async (clientPhone: string) => {
+  const filter = await accountOrderFilter(clientPhone);
   const { data, error } = await supabase
     .from('orders')
-    .select('*, restaurants(name, logo_url)')
-    .eq('client_phone', clientPhone)
-    .in('status', ['PENDING', 'ACCEPTED', 'ON_THE_WAY'])
+    .select('*, restaurants(name, logo_url, lat, lng)')
+    .or(filter)
+    .in('status', ACTIVE_ORDER_STATUSES)
     .order('created_at', { ascending: false });
   if (error) {
     console.error('[PideYa] getActiveOrders error:', JSON.stringify(error));
@@ -126,7 +141,7 @@ export const subscribeToOrderStatus = (
   callback: (order: Order) => void,
 ) => {
   const channel = supabase
-    .channel(`order-${orderId}`)
+    .channel(realtimeChannelName('order', orderId))
     .on(
       'postgres_changes',
       {

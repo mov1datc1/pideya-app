@@ -7,12 +7,15 @@
 
 export type FoodType = string;
 
+export type FlowType = 'prepared' | 'picked' | 'pharmacy';
+
 export interface AppCategory {
   id: string;
   name: string;
   emoji: string;
   sort_order: number;
   is_active: boolean;
+  flow_type: FlowType;
 }
 
 export type RestaurantStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED';
@@ -20,6 +23,8 @@ export type RestaurantStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED';
 export type OrderStatus =
   | 'PENDING'
   | 'ACCEPTED'
+  | 'PICKING'
+  | 'ADJUSTED'
   | 'ON_THE_WAY'
   | 'DELIVERED'
   | 'REJECTED'
@@ -80,6 +85,13 @@ export interface MenuItem {
   combo_description: string | null;
   available: boolean;
   sort_order: number;
+  // Weight/picking fields (migration 027)
+  sell_by_weight: boolean;
+  unit_type: string; // 'unit' | 'kg' | 'g' | 'lb' | 'lt' | 'ml'
+  price_per_unit: number | null;
+  min_quantity: number;
+  step_quantity: number;
+  allow_substitution: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -111,7 +123,7 @@ export interface OrderItemJSON {
 export interface Order {
   id: string;
   order_number: number;
-  reference_code: string; // PY-XXXXXX unique identifier
+  reference_code: string;
   restaurant_id: string;
   client_name: string | null;
   client_phone: string | null;
@@ -120,17 +132,17 @@ export interface Order {
   client_location_note: string | null;
   items: OrderItemJSON[];
   total: number;
-  subtotal: number | null; // migration 011
-  commission_amount: number | null; // migration 011
-  delivery_amount: number; // migration 012
-  delivery_type: DeliveryType; // migration 022
+  subtotal: number | null;
+  commission_amount: number | null;
+  delivery_amount: number;
+  delivery_type: DeliveryType;
   status: OrderStatus;
-  payment_method: string; // cash | card | oxxo
+  payment_method: string;
   rejection_reason: string | null;
   cancelled_at: string | null;
   cancelled_by: string | null;
   client_user_id: string | null;
-  // driver fields (migration 015)
+  // Driver fields
   delivery_driver_id: string | null;
   delivery_driver_name: string | null;
   delivery_driver_phone: string | null;
@@ -141,6 +153,12 @@ export interface Order {
   driver_last_lng: number | null;
   driver_location_accuracy_m: number | null;
   driver_location_updated_at: string | null;
+  // Picking fields (migration 027)
+  picking_preferences: PickingPreferences | null;
+  adjusted_total: number | null;
+  picking_started_at: string | null;
+  picking_completed_at: string | null;
+  client_confirmed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -237,4 +255,56 @@ export interface Cart {
   delivery_location_note: string;
   tip_amount: number;
   pays_with: number | null;
+}
+
+// ── Picking Types (migration 027) ─────────────────────────────
+
+export interface PickingPreferences {
+  on_unavailable: 'substitute' | 'remove' | 'ask_me';
+  on_less_quantity: 'accept_available' | 'remove' | 'ask_me';
+  item_timeout_seconds: number;
+  summary_timeout_seconds: number;
+}
+
+export const DEFAULT_PICKING_PREFERENCES: PickingPreferences = {
+  on_unavailable: 'substitute',
+  on_less_quantity: 'accept_available',
+  item_timeout_seconds: 300,
+  summary_timeout_seconds: 900,
+};
+
+export type PickingItemStatus = 'PENDING' | 'PICKED' | 'UNAVAILABLE' | 'SUBSTITUTED' | 'ADJUSTED';
+export type ClientResponse = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+export interface OrderPickingItem {
+  id: string;
+  order_id: string;
+  menu_item_id: string;
+  requested_name: string;
+  requested_quantity: number;
+  requested_unit: string;
+  requested_price: number;
+  picked_quantity: number | null;
+  picked_price: number | null;
+  substitute_item_id: string | null;
+  substitute_name: string | null;
+  substitute_price: number | null;
+  status: PickingItemStatus;
+  client_response: ClientResponse;
+  notes: string | null;
+  picked_at: string | null;
+  created_at: string;
+}
+
+export interface SavedList {
+  id: string;
+  client_user_id: string | null;
+  client_phone: string | null;
+  restaurant_id: string;
+  name: string;
+  items: OrderItemJSON[];
+  is_favorite: boolean;
+  source_order_id: string | null;
+  last_used_at: string | null;
+  created_at: string;
 }

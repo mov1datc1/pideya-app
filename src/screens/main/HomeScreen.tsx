@@ -13,11 +13,12 @@ import {
   Animated,
   Alert,
   Modal,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Location from 'expo-location';
 import { ScreenWrapper } from '../../components/layout/ScreenWrapper';
 import { LogoLockup } from '../../components/branding/LogoLockup';
 import { Card } from '../../components/ui/Card';
@@ -26,6 +27,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { useOrders } from '../../hooks/useOrders';
 import { isRestaurantOpenNow } from '../../utils/timeUtils';
 import * as addressService from '../../services/addresses';
+import { FirstOrderGuideCard, useFirstOrderGuide } from '../../components/guidedTour/FirstOrderGuide';
+import { LocationSetup } from '../../components/guidedTour/LocationSetup';
+import { useCart } from '../../hooks/useCart';
+import { toCoordinate } from '../../utils/coordinates';
+import { deliversTo, matchesCategory } from '../../utils/deliveryCoverage';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import { supabase } from '../../services/supabase';
 import type { RootStackParamList } from '../../types/navigation';
@@ -44,18 +50,55 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH * 0.72;
 const CAROUSEL_CARD_GAP = 12;
 
-// Dynamic categories will be fetched from the DB
-// CATEGORIES array is removed
+// ── 3D Isometric Category Icons mapping ──
+const CATEGORY_3D_ICONS: Record<string, any> = {
+  'Restaurantes': require('../../../assets/categories/restaurantes.png'),
+  'Farmacia': require('../../../assets/categories/farmacia.png'),
+  'Supermercado': require('../../../assets/categories/supermercado.png'),
+  'Tiendas': require('../../../assets/categories/supermercado.png'),
+  'Express': require('../../../assets/categories/express.png'),
+};
+
+// ── Category icon mapping ──
+// Maps category names (from DB) to premium Ionicons + per-category accent colors
+// Falls back to emoji for unknown categories
+const CATEGORY_ICON_MAP: Record<string, { icon: string; iconFilled: string; bg: string; color: string }> = {
+  'ALL':           { icon: 'grid-outline',        iconFilled: 'grid',        bg: '#E8F5F2', color: '#2D8B7A' }, // Agave brand
+  'Restaurantes':  { icon: 'restaurant-outline',   iconFilled: 'restaurant',  bg: '#FFF3E0', color: '#E65100' }, // Warm orange
+  'Farmacia':      { icon: 'medkit-outline',        iconFilled: 'medkit',      bg: '#E8F5E9', color: '#2E7D32' }, // Medical green
+  'Carnicería':    { icon: 'flame-outline',         iconFilled: 'flame',       bg: '#FFEBEE', color: '#C62828' }, // Red meat
+  'Frutería':      { icon: 'leaf-outline',           iconFilled: 'leaf',        bg: '#F1F8E9', color: '#558B2F' }, // Fresh green
+  'Pescadería':    { icon: 'fish-outline',           iconFilled: 'fish',        bg: '#E3F2FD', color: '#1565C0' }, // Ocean blue
+  'Cremería':      { icon: 'ice-cream-outline',      iconFilled: 'ice-cream',   bg: '#FFF8E1', color: '#F9A825' }, // Creamy yellow
+  'Tiendas':       { icon: 'storefront-outline',     iconFilled: 'storefront',  bg: '#F3E5F5', color: '#7B1FA2' }, // Purple shop
+  'Otros':         { icon: 'basket-outline',          iconFilled: 'basket',      bg: '#EFEBE9', color: '#5D4037' }, // Brown misc
+};
+
+interface AppCategoryItem {
+  label: string;
+  value: string;
+  emoji: string;
+  is_active: boolean;
+}
 
 export const HomeScreen: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const isFocused = useIsFocused();
+  const guide = useFirstOrderGuide();
+  const { setDeliveryAddress } = useCart();
+  const [addressesLoaded, setAddressesLoaded] = useState(false);
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [addressReload, setAddressReload] = useState(0);
+  const savingRef = useRef(false);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { restaurants, loading, error, search } = useRestaurants();
-  const [appCategories, setAppCategories] = useState<{ label: string; value: string; emoji: string }[]>([{ label: 'Todos', value: 'ALL', emoji: '🛍️' }]);
-  const [selectedType, setSelectedType] = useState<string>('ALL');
+  const [appCategories, setAppCategories] = useState<AppCategoryItem[]>([]);
+  const [selectedType, setSelectedType] = useState<string>('Restaurantes');
   const [searchQuery, setSearchQuery] = useState('');
-  const { activeOrders } = useOrders(profile?.phone ?? '');
+  const { activeOrders, orders: previousOrders } = useOrders(profile?.phone ?? '');
   const activeOrder = activeOrders[0] ?? null;
+  useEffect(() => { if (guide.loaded && previousOrders.length) guide.advance('done'); }, [guide.loaded, previousOrders.length, guide.advance]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -63,16 +106,23 @@ export const HomeScreen: React.FC = () => {
         const { data } = await supabase
           .from('app_categories')
           .select('*')
-          .eq('is_active', true)
           .order('sort_order', { ascending: true });
         
         if (data && data.length > 0) {
-          const mapped = data.map((c: AppCategory) => ({
+          const mapped: AppCategoryItem[] = data.map((c: AppCategory) => ({
             label: c.name,
             value: c.name,
-            emoji: c.emoji
+            emoji: c.emoji || '🛍️',
+            is_active: c.is_active !== false,
           }));
-          setAppCategories([{ label: 'Todos', value: 'ALL', emoji: '🛍️' }, ...mapped]);
+          setAppCategories(mapped);
+
+          // Default selected category to Restaurantes or first active category
+          const restCat = mapped.find((m) => m.is_active && (m.value.toLowerCase().includes('restaurante') || m.label.toLowerCase().includes('restaurante')));
+          const firstActive = restCat || mapped.find((m) => m.is_active);
+          if (firstActive) {
+            setSelectedType(firstActive.value);
+          }
         }
       } catch (e) {
         console.warn('Error fetching categories:', e);
@@ -85,6 +135,7 @@ export const HomeScreen: React.FC = () => {
   const [userLat, setUserLat] = useState(0);
   const [userLng, setUserLng] = useState(0);
   const [userAddressLabel, setUserAddressLabel] = useState('Selecciona tu ubicación');
+  const [activeAddressId, setActiveAddressId] = useState<string | null>(null);
   const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [locationReady, setLocationReady] = useState(false);
@@ -94,58 +145,59 @@ export const HomeScreen: React.FC = () => {
   const [pendingLocation, setPendingLocation] = useState<{ address: string; latitude: number; longitude: number } | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<'Casa' | 'Trabajo' | 'Otro'>('Casa');
   const [customLabel, setCustomLabel] = useState('');
-
-  // Load saved addresses + set default location
+  const focusState = useRef({ addressesLoaded, showLabelDialog });
+  focusState.current = { addressesLoaded, showLabelDialog };
   useEffect(() => {
-    const init = async () => {
-      const addrs = await addressService.getAddresses();
-      setSavedAddresses(addrs);
-      const def = addrs.find((a) => a.is_default) ?? addrs[0];
-      if (def) {
-        setUserLat(def.latitude);
-        setUserLng(def.longitude);
-        setUserAddressLabel(def.label);
+    if (isFocused && focusState.current.addressesLoaded && !focusState.current.showLabelDialog) setAddressReload(n => n + 1);
+  }, [isFocused]);
+
+  useEffect(() => {
+    let active = true;
+    setAddressesLoaded(false);
+    setLocationReady(false);
+    setUserLat(0); setUserLng(0); setSavedAddresses([]);
+    setUserAddressLabel('Selecciona tu ubicación');
+    setActiveAddressId(null);
+    if (!user?.id) return;
+    setDeliveryAddress('', 0, 0, '');
+    addressService.getAddresses().then(all => {
+      if (!active) return;
+      const addresses = all.filter(a => toCoordinate(a.latitude, a.longitude) && a.address_text?.trim());
+      setSavedAddresses(addresses);
+      const selected = addresses.find(a => a.is_default) ?? addresses[0];
+      if (selected) {
+        setActiveAddressId(selected.id);
+        setUserLat(selected.latitude); setUserLng(selected.longitude); setUserAddressLabel(selected.label);
         setLocationReady(true);
-      } else {
-        // First time — open map for location selection
-        requestGPSAndOpenMap();
+        setDeliveryAddress(selected.address_text, selected.latitude, selected.longitude, selected.reference || '');
       }
-    };
-    void init();
-  }, []);
+      setAddressError(null);
+    }).catch(() => {
+      if (active) setAddressError('No pudimos cargar tus direcciones. Puedes reintentar o guardar una nueva.');
+    }).finally(() => { if (active) setAddressesLoaded(true); });
+    return () => { active = false; };
+  }, [user?.id, addressReload, setDeliveryAddress]);
 
-  /** Navigate to AddressPicker with GPS as starting point */
-  const requestGPSAndOpenMap = useCallback(async () => {
+  useEffect(() => {
+    if (locationReady && guide.loaded) guide.advance('category');
+  }, [locationReady, guide.loaded, guide.advance]);
+
+  /** Permission is requested only after the customer chooses GPS. Manual entry stays available. */
+  const requestGPSAndOpenMap = useCallback(() => {
     setShowLocationPicker(false);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      let startLat = 20.8167; // Default Tepatitlán
-      let startLng = -102.7633;
-
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        startLat = loc.coords.latitude;
-        startLng = loc.coords.longitude;
-      }
-
-      // Navigate to full-screen map for pin confirmation
-      navigation.navigate('AddressPicker', {
-        latitude: startLat,
-        longitude: startLng,
-        onSelect: (data: { address: string; latitude: number; longitude: number }) => {
-          setPendingLocation(data);
-          setShowLabelDialog(true);
-        },
-      });
-    } catch {
-      setLocationReady(true);
-    }
-  }, [navigation]);
+    navigation.navigate('AddressPicker', {
+      onboarding: !locationReady,
+      locateOnOpen: true,
+      onSelect: data => { setPendingLocation(data); setShowLabelDialog(true); },
+    });
+  }, [navigation, locationReady]);
 
   /** Open map from "Add new address" without GPS */
   const openMapForNewAddress = useCallback(() => {
     setShowLocationPicker(false);
     navigation.navigate('AddressPicker', {
+      onboarding: !locationReady,
+      locateOnOpen: false,
       latitude: userLat || 20.8167,
       longitude: userLng || -102.7633,
       onSelect: (data: { address: string; latitude: number; longitude: number }) => {
@@ -153,15 +205,18 @@ export const HomeScreen: React.FC = () => {
         setShowLabelDialog(true);
       },
     });
-  }, [navigation, userLat, userLng]);
+  }, [navigation, userLat, userLng, locationReady]);
 
   /** Save the pending location with the selected label */
   const saveLabeledAddress = useCallback(async () => {
-    if (!pendingLocation) return;
+    if (!pendingLocation || !user?.id || savingRef.current) return;
+    if (!toCoordinate(pendingLocation.latitude, pendingLocation.longitude)) return;
+    savingRef.current = true; setSavingAddress(true);
+    try {
     const label = selectedLabel === 'Otro' ? (customLabel.trim() || 'Mi dirección') : selectedLabel;
 
     const newAddr = await addressService.addAddress({
-      user_id: profile?.full_name || 'local',
+      user_id: user.id,
       label,
       address_text: pendingLocation.address,
       reference: null,
@@ -171,7 +226,10 @@ export const HomeScreen: React.FC = () => {
       is_pin_location: true,
     });
 
-    setSavedAddresses((prev) => [...prev, newAddr]);
+    setActiveAddressId(newAddr.id);
+    setSavedAddresses(prev => [...prev.map(a => ({ ...a, is_default: false })), newAddr]);
+    setDeliveryAddress(newAddr.address_text, newAddr.latitude, newAddr.longitude, '');
+    guide.advance('category');
     setUserLat(pendingLocation.latitude);
     setUserLng(pendingLocation.longitude);
     setUserAddressLabel(label);
@@ -180,15 +238,32 @@ export const HomeScreen: React.FC = () => {
     setPendingLocation(null);
     setCustomLabel('');
     setSelectedLabel('Casa');
-  }, [pendingLocation, selectedLabel, customLabel, profile]);
+    setAddressError(null);
+    } catch { Alert.alert('No se guardó la dirección', 'Intenta de nuevo. Tu ubicación seguirá aquí para que puedas guardarla.'); }
+    finally { savingRef.current = false; setSavingAddress(false); }
+  }, [pendingLocation, selectedLabel, customLabel, user?.id, setDeliveryAddress, guide.advance]);
 
   const selectSavedAddress = useCallback(async (addr: UserAddress) => {
+    try {
+    await addressService.setDefaultAddress(addr.id);
+    setActiveAddressId(addr.id);
+    setDeliveryAddress(addr.address_text, addr.latitude, addr.longitude, addr.reference || '');
+    setLocationReady(true);
     setUserLat(addr.latitude);
     setUserLng(addr.longitude);
     setUserAddressLabel(addr.label);
     setShowLocationPicker(false);
-    await addressService.setDefaultAddress(addr.id);
-  }, []);
+    } catch { Alert.alert('No se pudo seleccionar la dirección', 'Intenta de nuevo.'); }
+  }, [setDeliveryAddress]);
+
+  const cancelAddressSetup = () => {
+    if (savingAddress) return;
+    if (locationReady) { setShowLabelDialog(false); return; }
+    Alert.alert('Tu ubicación aún no está guardada', 'Guarda esta dirección como Casa, Trabajo u Otro para ver qué restaurantes y tiendas entregan aquí.', [
+      { text: 'Guardar mi dirección', style: 'cancel' },
+      { text: 'Elegir otro punto', onPress: () => { setShowLabelDialog(false); setPendingLocation(null); } },
+    ]);
+  };
 
   const deleteSavedAddress = useCallback(async (addr: UserAddress) => {
     Alert.alert(
@@ -200,22 +275,26 @@ export const HomeScreen: React.FC = () => {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
+            try {
             await addressService.deleteAddress(addr.id);
             setSavedAddresses((prev) => prev.filter((a) => a.id !== addr.id));
             // If this was the active address, reset
-            if (userAddressLabel === addr.label) {
+            if (activeAddressId === addr.id) {
               const remaining = savedAddresses.filter((a) => a.id !== addr.id);
               if (remaining.length > 0) {
                 await selectSavedAddress(remaining[0]);
               } else {
                 setUserAddressLabel('Selecciona tu ubicación');
+                setActiveAddressId(null); setLocationReady(false); setUserLat(0); setUserLng(0);
+                setDeliveryAddress('', 0, 0, '');
               }
             }
+            } catch { Alert.alert('No se pudo eliminar la dirección', 'Intenta de nuevo.'); }
           },
         },
       ],
     );
-  }, [savedAddresses, userAddressLabel, selectSavedAddress]);
+  }, [savedAddresses, activeAddressId, selectSavedAddress, setDeliveryAddress]);
 
   // Banner animation
   const bannerAnim = useRef(new Animated.Value(0)).current;
@@ -227,25 +306,13 @@ export const HomeScreen: React.FC = () => {
     }).start();
   }, [activeOrder]);
 
-  // Filter by type AND distance
-  const filteredRestaurants = useMemo(() => {
-    let list = selectedType === 'ALL' ? restaurants : restaurants.filter((r) => r.type === selectedType);
-    // Distance filter — only if user has location set
-    if (userLat !== 0 && userLng !== 0) {
-      list = list.filter((r) => {
-        if (!r.lat || !r.lng) return true; // no coords = show anyway
-        const dist = haversineKm(userLat, userLng, Number(r.lat), Number(r.lng));
-        return dist <= (r.delivery_radius_km || 10);
-      });
-    }
-    return list;
-  }, [restaurants, selectedType, userLat, userLng]);
-
-  // Featured: open restaurants with cover images (promos/popular)
-  const featured = useMemo(
-    () => restaurants.filter((r) => isRestaurantOpenNow(r.open_time, r.close_time, r.is_open) && (r.cover_url || r.photo_url)).slice(0, 8),
-    [restaurants],
-  );
+  const nearbyRestaurants = useMemo(() => locationReady ? restaurants.filter(r => deliversTo(r, userLat, userLng)) : [], [restaurants, locationReady, userLat, userLng]);
+  const visibleCategories = useMemo(() => appCategories.filter(cat => cat.is_active && nearbyRestaurants.some(r => matchesCategory(r.type || '', cat.value))), [appCategories, nearbyRestaurants]);
+  useEffect(() => {
+    if (visibleCategories.length && !visibleCategories.some(cat => cat.value === selectedType)) setSelectedType(visibleCategories[0].value);
+  }, [visibleCategories, selectedType]);
+  const filteredRestaurants = useMemo(() => nearbyRestaurants.filter(r => matchesCategory(r.type || '', selectedType)), [nearbyRestaurants, selectedType]);
+  const featured = useMemo(() => filteredRestaurants.filter(r => isRestaurantOpenNow(r.open_time, r.close_time, r.is_open) && (r.cover_url || r.photo_url)).slice(0, 8), [filteredRestaurants]);
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -368,6 +435,7 @@ export const HomeScreen: React.FC = () => {
         <Ionicons name="chevron-down" size={18} color={colors['ink-muted']} />
       </TouchableOpacity>
 
+      <FirstOrderGuideCard stage={guide.stage === 'category' || guide.stage === 'location' ? 'category' : 'store'} />
       {/* Greeting */}
       <Text style={styles.greeting}>{greeting}</Text>
       <Text style={styles.subtitle}>Que se te antoja hoy?</Text>
@@ -395,19 +463,70 @@ export const HomeScreen: React.FC = () => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoryRow}
       >
-        {appCategories.map((cat) => {
+        {visibleCategories.map((cat) => {
           const isActive = selectedType === cat.value;
+          const isCategoryActive = cat.is_active;
+          const icon3D = CATEGORY_3D_ICONS[cat.value] || CATEGORY_3D_ICONS[cat.label];
+          const iconConfig = CATEGORY_ICON_MAP[cat.value] || CATEGORY_ICON_MAP[cat.label];
+          const hasIcon = !!iconConfig;
+          const accentColor = isCategoryActive ? (iconConfig?.color || colors.agave) : colors['ink-hint'];
+          const accentBg = isCategoryActive ? (iconConfig?.bg || colors.cloud) : '#F1F5F9';
+
           return (
             <TouchableOpacity
               key={cat.value}
-              style={styles.categoryItem}
-              onPress={() => setSelectedType(cat.value)}
+              style={[styles.categoryItem, !isCategoryActive && { opacity: 0.65 }]}
+              onPress={() => {
+                if (!isCategoryActive) {
+                  Alert.alert(
+                    '¡Próximamente!',
+                    `Estamos preparando las mejores opciones de ${cat.label} para tu zona. ¡Espéralo muy pronto en PideYa!`
+                  );
+                } else {
+                  setSelectedType(cat.value);
+                  guide.advance('store');
+                }
+              }}
               activeOpacity={0.7}
             >
-              <View style={[styles.categoryCircle, isActive && styles.categoryCircleActive]}>
-                <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+              <View
+                style={[
+                  styles.categoryCircle,
+                  { backgroundColor: accentBg },
+                  isActive && [
+                    styles.categoryCircleActive,
+                    {
+                      backgroundColor: accentColor,
+                      borderColor: accentColor,
+                      shadowColor: accentColor,
+                    },
+                  ],
+                ]}
+              >
+                {icon3D ? (
+                  <Image
+                    source={icon3D}
+                    style={{ width: 40, height: 40, opacity: isCategoryActive ? 1 : 0.6 }}
+                    resizeMode="contain"
+                  />
+                ) : hasIcon ? (
+                  <Ionicons
+                    name={(isActive ? iconConfig.iconFilled : iconConfig.icon) as keyof typeof Ionicons.glyphMap}
+                    size={24}
+                    color={isActive ? '#FFFFFF' : accentColor}
+                  />
+                ) : (
+                  <Text style={[styles.categoryEmoji, !isCategoryActive && { opacity: 0.6 }]}>{cat.emoji}</Text>
+                )}
               </View>
-              <Text style={[styles.categoryLabel, isActive && styles.categoryLabelActive]}>
+              <Text
+                style={[
+                  styles.categoryLabel,
+                  isActive && [styles.categoryLabelActive, { color: accentColor }],
+                  !isCategoryActive && { color: colors['ink-muted'] },
+                ]}
+                numberOfLines={1}
+              >
                 {cat.label}
               </Text>
             </TouchableOpacity>
@@ -434,7 +553,7 @@ export const HomeScreen: React.FC = () => {
 
       {/* Section title for main list */}
       <Text style={[styles.sectionTitle, { paddingHorizontal: 0, marginTop: spacing.lg }]}>
-        {selectedType === 'ALL' ? 'Todos los establecimientos' : appCategories.find(c => c.value === selectedType)?.label || 'Establecimientos'}
+        {appCategories.find((c) => c.value === selectedType)?.label || selectedType || 'Establecimientos'}
       </Text>
     </>
   );
@@ -445,7 +564,9 @@ export const HomeScreen: React.FC = () => {
         <LogoLockup size="sm" />
       </View>
 
-      {loading ? (
+      {!addressesLoaded ? <ActivityIndicator size="large" color={colors.agave} style={styles.loader} /> : !locationReady ? (
+        <LocationSetup onLocate={requestGPSAndOpenMap} onManual={openMapForNewAddress} loading={false} error={addressError} onRetry={() => setAddressReload(n => n + 1)} />
+      ) : loading ? (
         <ActivityIndicator
           size="large"
           color={colors.agave}
@@ -465,7 +586,7 @@ export const HomeScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={ListHeader}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No hay restaurantes disponibles</Text>
+            <View><Text style={styles.emptyText}>{searchQuery ? 'No encontramos coincidencias en tu zona. Prueba otra búsqueda.' : 'Todavía no hay establecimientos de esta categoría que lleguen a tu dirección. Prueba otra categoría o cambia el punto de entrega.'}</Text><TouchableOpacity onPress={() => setShowLocationPicker(true)} style={{ padding: 16 }}><Text style={{ textAlign: 'center', color: colors.agave }}>Cambiar dirección</Text></TouchableOpacity></View>
           }
         />
       )}
@@ -532,7 +653,7 @@ export const HomeScreen: React.FC = () => {
                 <Text style={styles.locSavedTitle}>Direcciones guardadas</Text>
                 <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
                   {savedAddresses.map((addr) => {
-                    const isActive = userAddressLabel === addr.label;
+                    const isActive = activeAddressId === addr.id;
                     const iconName = addr.label.toLowerCase().includes('casa') ? 'home' :
                       addr.label.toLowerCase().includes('trabajo') ? 'briefcase' : 'location';
                     return (
@@ -578,10 +699,11 @@ export const HomeScreen: React.FC = () => {
       </Modal>
 
       {/* ── LABEL DIALOG MODAL (after map confirmation) ── */}
-      <Modal visible={showLabelDialog} animationType="fade" transparent>
-        <View style={styles.labelModalOverlay}>
+      <Modal visible={showLabelDialog} animationType="fade" transparent onRequestClose={cancelAddressSetup}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={styles.labelModalOverlay} keyboardShouldPersistTaps="handled">
           <View style={styles.labelModalCard}>
-            <Text style={styles.labelModalTitle}>Guardar dirección como...</Text>
+            <Text style={styles.labelModalTitle}>Último paso: guarda tu dirección</Text>
             {pendingLocation && (
               <Text style={styles.labelModalAddress} numberOfLines={2}>
                 📍 {pendingLocation.address}
@@ -605,7 +727,7 @@ export const HomeScreen: React.FC = () => {
                       color={isSelected ? colors.white : colors.agave}
                     />
                     <Text style={[styles.labelOptionText, isSelected && styles.labelOptionTextActive]}>
-                      {opt === 'Casa' ? '🏠 Casa' : opt === 'Trabajo' ? '💼 Trabajo' : '📍 Otro'}
+                      {opt === 'Casa' ? 'Casa' : opt === 'Trabajo' ? 'Trabajo' : 'Otro'}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -625,25 +747,28 @@ export const HomeScreen: React.FC = () => {
 
             <View style={styles.labelActions}>
               <TouchableOpacity
+                disabled={savingAddress}
                 style={styles.labelCancelBtn}
-                onPress={() => {
-                  setShowLabelDialog(false);
-                  setPendingLocation(null);
-                }}
+                onPress={cancelAddressSetup}
               >
                 <Text style={styles.labelCancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.labelSaveBtn}
+                disabled={savingAddress}
                 onPress={() => void saveLabeledAddress()}
               >
                 <Ionicons name="checkmark-circle" size={20} color={colors.white} />
-                <Text style={styles.labelSaveText}>Guardar</Text>
+                <Text style={styles.labelSaveText}>{savingAddress ? 'Guardando…' : 'Guardar y continuar'}</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
+
+
+
     </ScreenWrapper>
   );
 };
@@ -777,7 +902,7 @@ const styles = StyleSheet.create({
   },
   // ── Label dialog ──
   labelModalOverlay: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -849,6 +974,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   labelActions: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     gap: spacing.md,
   },
@@ -877,6 +1003,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   labelSaveText: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontFamily: fonts.outfit.semiBold,
     fontSize: 15,
     color: colors.white,
@@ -907,31 +1035,53 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.ink,
   },
-  // Category icons row
+  // Category icons row — Premium redesign
   categoryRow: {
     paddingVertical: spacing.lg,
-    gap: spacing.lg,
+    paddingHorizontal: spacing.xs,
+    gap: spacing.md,
   },
   categoryItem: {
     alignItems: 'center',
-    width: 68,
+    width: 72,
   },
   categoryCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 58,
+    height: 58,
+    borderRadius: 20,
     backgroundColor: colors.cloud,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 6,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   categoryCircleActive: {
-    backgroundColor: colors['agave-light'],
     borderWidth: 2,
-    borderColor: colors.agave,
+    ...Platform.select({
+      ios: {
+        shadowOpacity: 0.25,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
   categoryEmoji: {
-    fontSize: 26,
+    fontSize: 24,
   },
   categoryLabel: {
     fontFamily: fonts.outfit.medium,
@@ -940,7 +1090,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   categoryLabelActive: {
-    color: colors.agave,
     fontFamily: fonts.outfit.bold,
   },
   // Featured carousel

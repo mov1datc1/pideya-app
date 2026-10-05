@@ -17,10 +17,14 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRestaurantMenu } from '../../hooks/useRestaurants';
 import { useCart } from '../../hooks/useCart';
+import { FirstOrderGuideCard, useFirstOrderGuide } from '../../components/guidedTour/FirstOrderGuide';
+import { useAuth } from '../../hooks/useAuth';
+import * as savedListsService from '../../services/savedLists';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
 import type { MenuItem, MenuItemOption } from '../../types/database';
 import * as restaurantService from '../../services/restaurants';
+import { getFlowTypeForRestaurant } from '../../services/picking';
 
 type RouteType = RouteProp<RootStackParamList, 'RestaurantDetail'>;
 type NavType = NativeStackNavigationProp<RootStackParamList>;
@@ -58,14 +62,28 @@ export const RestaurantDetailScreen: React.FC = () => {
   const route = useRoute<RouteType>();
   const navigation = useNavigation<NavType>();
   const insets = useSafeAreaInsets();
+  const { profile } = useAuth();
+  const guide = useFirstOrderGuide();
+  React.useEffect(() => { if (guide.loaded) guide.advance('products'); }, [guide.loaded, guide.advance]);
   const { restaurantId, restaurantName, restaurantType, coverUrl } = route.params;
 
-  const isRestaurant = !restaurantType || restaurantType === 'RESTAURANT' || restaurantType === 'RESTAURANTE';
+  const [storeFlow, setStoreFlow] = useState<{ id: string; picking: boolean } | null>(null);
+  const isPickingStore = storeFlow?.id === restaurantId && storeFlow.picking;
+  const isRestaurant = !isPickingStore;
+
+  React.useEffect(() => {
+    let active = true;
+    getFlowTypeForRestaurant(restaurantId).then((flow) => {
+      if (active) setStoreFlow({ id: restaurantId, picking: flow === 'picked' || flow === 'pharmacy' });
+    });
+    return () => { active = false; };
+  }, [restaurantId]);
+
   const notesPlaceholder = isRestaurant 
     ? 'Ej: sin cebolla, extra picante...' 
     : 'Ej: maduros, verdes, especificaciones...';
   const { items, categories, loading, error } = useRestaurantMenu(restaurantId);
-  const { addItem, itemCount, itemsTotal, cart } = useCart();
+  const { addItem, updateQuantity, itemCount, itemsTotal, cart } = useCart();
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -75,6 +93,69 @@ export const RestaurantDetailScreen: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const [savingList, setSavingList] = useState(false);
+
+  const getItemQtyInCart = useCallback(
+    (itemId: string) => {
+      const found = cart.items.find((i) => i.menu_item.id === itemId);
+      return found ? found.quantity : 0;
+    },
+    [cart.items],
+  );
+
+  const handleQuickAdd = useCallback(
+    (item: MenuItem) => {
+      addItem(restaurantId, restaurantName, item, 1, '', []);
+    },
+    [restaurantId, restaurantName, addItem],
+  );
+
+  const handleQuickIncrement = useCallback(
+    (item: MenuItem, currentQty: number) => {
+      updateQuantity(item.id, currentQty + 1);
+    },
+    [updateQuantity],
+  );
+
+  const handleQuickDecrement = useCallback(
+    (item: MenuItem, currentQty: number) => {
+      updateQuantity(item.id, currentQty - 1);
+    },
+    [updateQuantity],
+  );
+
+  const handleSaveList = useCallback(async () => {
+    if (cart.items.length === 0) {
+      Alert.alert('Carrito vacío', 'Agrega productos a tu carrito antes de guardar la lista.');
+      return;
+    }
+    setSavingList(true);
+    try {
+      const listItems = cart.items.map((i) => ({
+        id: i.menu_item.id,
+        item_id: i.menu_item.id,
+        name: i.menu_item.name,
+        quantity: i.quantity,
+        price: i.menu_item.price,
+        notes: i.notes,
+      }));
+      await savedListsService.saveList({
+        client_phone: profile?.phone ?? '',
+        client_user_id: (profile as any)?.id ?? null,
+        restaurant_id: restaurantId,
+        source_order_id: null,
+        name: `Lista en ${restaurantName}`,
+        items: listItems,
+        is_favorite: true,
+        last_used_at: new Date().toISOString(),
+      });
+      Alert.alert('Lista Guardada', 'Tu lista de compra fue guardada exitosamente.');
+    } catch {
+      Alert.alert('Error', 'No se pudo guardar la lista de compra.');
+    } finally {
+      setSavingList(false);
+    }
+  }, [cart.items, restaurantId, restaurantName, profile]);
 
   const classified = useMemo(() => {
     if (!selectedItem) return { sizes: [], extras: [] };
@@ -123,7 +204,7 @@ export const RestaurantDetailScreen: React.FC = () => {
 
     // If sizes exist and none selected, prompt user
     if (classified.sizes.length > 0 && !selectedSize) {
-      Alert.alert('Selecciona un tamano', 'Elige una opcion de tamano para continuar.');
+      Alert.alert('Selecciona un tamaño', 'Elige una opción de tamaño para continuar.');
       return;
     }
 
@@ -135,8 +216,8 @@ export const RestaurantDetailScreen: React.FC = () => {
 
     if (cart.restaurant_id && cart.restaurant_id !== restaurantId && cart.items.length > 0) {
       Alert.alert(
-        'Nuevo pedido?',
-        `Ya tienes productos de ${cart.restaurant_name}. Cada pedido solo puede ser de un restaurante porque el repartidor es del propio restaurante.\n\nQuieres vaciar tu carrito y empezar con ${restaurantName}?`,
+        '¿Nuevo pedido?',
+        `Ya tienes productos de ${cart.restaurant_name}. Cada pedido solo puede ser de un establecimiento a la vez.\n\n¿Quieres vaciar tu carrito y empezar con ${restaurantName}?`,
         [
           { text: 'Mantener carrito', style: 'cancel' },
           {
@@ -155,29 +236,91 @@ export const RestaurantDetailScreen: React.FC = () => {
     setSelectedItem(null);
   };
 
-  const renderMenuItem = ({ item }: { item: MenuItem }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={() => openItemDetail(item)} activeOpacity={0.7}>
-      <View style={styles.menuItemInfo}>
-        <Text style={styles.menuItemName}>{item.name}</Text>
-        {item.description ? (
-          <Text style={styles.menuItemDesc} numberOfLines={2}>{item.description}</Text>
-        ) : null}
-        <Text style={styles.menuItemPrice}>${item.price.toFixed(2)}</Text>
-        {item.is_promo && item.promo_description ? (
-          <View style={styles.promoBadge}>
-            <Text style={styles.promoText}>{item.promo_description}</Text>
+  const renderMenuItem = ({ item }: { item: MenuItem }) => {
+    const qtyInCart = getItemQtyInCart(item.id);
+
+    return (
+      <View style={styles.menuItemCardContainer}>
+        <TouchableOpacity
+          style={styles.menuItemMainTouchable}
+          onPress={() => openItemDetail(item)}
+          activeOpacity={0.7}
+        >
+          {item.photo_url_1 ? (
+            <Image source={{ uri: item.photo_url_1 }} style={styles.menuItemImage} />
+          ) : (
+            <View style={[styles.menuItemImage, styles.menuItemPlaceholder]}>
+              <Ionicons
+                name={isRestaurant ? 'fast-food-outline' : 'basket-outline'}
+                size={24}
+                color={colors['ink-hint']}
+              />
+            </View>
+          )}
+
+          <View style={styles.menuItemInfo}>
+            <Text style={styles.menuItemName}>{item.name}</Text>
+            {item.description ? (
+              <Text style={styles.menuItemDesc} numberOfLines={2}>{item.description}</Text>
+            ) : null}
+            <Text style={styles.menuItemPrice}>
+              ${(item.sell_by_weight && item.price_per_unit ? item.price_per_unit : item.price).toFixed(2)}
+              {item.sell_by_weight ? (
+                <Text style={{ fontSize: 11, color: colors['ink-secondary'] }}>/{item.unit_type}</Text>
+              ) : null}
+            </Text>
+            {item.is_promo && item.promo_description ? (
+              <View style={styles.promoBadge}>
+                <Text style={styles.promoText}>{item.promo_description}</Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
-      </View>
-      {item.photo_url_1 ? (
-        <Image source={{ uri: item.photo_url_1 }} style={styles.menuItemImage} />
-      ) : (
-        <View style={[styles.menuItemImage, styles.menuItemPlaceholder]}>
-          <Ionicons name="fast-food-outline" size={24} color={colors['ink-hint']} />
+        </TouchableOpacity>
+
+        {/* Action Controls: Vertical Stepper (+ / -) for Retail/Frutería, or Quick Add */}
+        <View style={styles.menuItemActionSide}>
+          {!isRestaurant ? (
+            qtyInCart > 0 ? (
+              <View style={styles.stepperVertical}>
+                <TouchableOpacity
+                  style={styles.stepperBtnPlus}
+                  onPress={() => handleQuickIncrement(item, qtyInCart)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={16} color={colors.white} />
+                </TouchableOpacity>
+                <Text style={styles.stepperQtyText}>{qtyInCart}</Text>
+                <TouchableOpacity
+                  style={styles.stepperBtnMinus}
+                  onPress={() => handleQuickDecrement(item, qtyInCart)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="remove" size={16} color={colors.ink} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.quickAddPill}
+                onPress={() => handleQuickAdd(item)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="add" size={18} color={colors.white} />
+                <Text style={styles.quickAddPillText}>Agregar</Text>
+              </TouchableOpacity>
+            )
+          ) : (
+            <TouchableOpacity
+              style={styles.openDetailCircle}
+              onPress={() => openItemDetail(item)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={20} color={colors.agave} />
+            </TouchableOpacity>
+          )}
         </View>
-      )}
-    </TouchableOpacity>
-  );
+      </View>
+    );
+  };
 
   const groupedData = useMemo(() => {
     const result: { category: string; items: MenuItem[] }[] = [];
@@ -204,11 +347,45 @@ export const RestaurantDetailScreen: React.FC = () => {
           <View style={styles.coverGradient} />
         </View>
 
-        {/* Restaurant info */}
+        {/* Store Title Section */}
         <View style={styles.titleSection}>
           <Text style={styles.restaurantName}>{restaurantName}</Text>
         </View>
 
+        {/* Multi-Category Picking & Substitution Preferences Bar */}
+        {!isRestaurant && (
+          <View style={styles.multiCategoryContainer}>
+            {/* Store Metadata Badges */}
+            <View style={styles.storeBadgesRow}>
+              <View style={styles.badgeChip}>
+                <Ionicons name="flash-outline" size={14} color={colors.agave} />
+                <Text style={styles.badgeChipText}>Surtido de productos</Text>
+              </View>
+
+            </View>
+
+            {/* Save List Action Bar */}
+            <TouchableOpacity
+              style={styles.saveListBarBtn}
+              onPress={handleSaveList}
+              disabled={savingList}
+              activeOpacity={0.8}
+            >
+              {savingList ? (
+                <ActivityIndicator size="small" color={colors.agave} />
+              ) : (
+                <>
+                  <Ionicons name="bookmark-outline" size={18} color={colors.agave} />
+                  <Text style={styles.saveListBarText}>Guardar Lista de Compra</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <Text style={styles.subPrefTitle}>Las preferencias de surtido se revisan al confirmar tu pedido.</Text>
+          </View>
+        )}
+
+        <View style={{ paddingHorizontal: spacing.lg }}><FirstOrderGuideCard stage="products" /></View>
         {/* Category filter */}
         {categories.length > 1 && (
           <ScrollView
@@ -899,6 +1076,167 @@ const styles = StyleSheet.create({
   addToCartText: {
     fontFamily: fonts.outfit.bold,
     fontSize: 16,
+    color: colors.white,
+  },
+
+  // ── Multi-Category & Stepper Styles ──
+  menuItemCardContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.cloud,
+  },
+  menuItemMainTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.md,
+  },
+  menuItemActionSide: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: spacing.xs,
+  },
+  stepperVertical: {
+    alignItems: 'center',
+    backgroundColor: colors.snow,
+    borderRadius: 16,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderWidth: 1,
+    borderColor: colors.cloud,
+  },
+  stepperBtnPlus: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.agave,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperBtnMinus: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.cloud,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stepperQtyText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 13,
+    color: colors.ink,
+    marginVertical: 4,
+    textAlign: 'center',
+  },
+  quickAddPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.agave,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    gap: 2,
+  },
+  quickAddPillText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 11,
+    color: colors.white,
+  },
+  openDetailCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#E8F5F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  multiCategoryContainer: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  storeBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  badgeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.snow,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cloud,
+  },
+  badgeChipText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 11,
+    color: colors.ink,
+  },
+  saveListBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: '#E8F5F2',
+    paddingVertical: 10,
+    borderRadius: radius.sm,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.agave,
+  },
+  saveListBarText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 13,
+    color: colors.agave,
+  },
+  subPrefCard: {
+    backgroundColor: colors.snow,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.cloud,
+  },
+  subPrefTitle: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 12,
+    color: colors['ink-secondary'],
+    marginBottom: spacing.xs,
+  },
+  subPrefChipsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+  },
+  subPrefChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.white,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cloud,
+  },
+  subPrefChipActive: {
+    backgroundColor: colors.agave,
+    borderColor: colors.agave,
+  },
+  subPrefChipText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 11,
+    color: colors.ink,
+  },
+  subPrefChipTextActive: {
     color: colors.white,
   },
 });

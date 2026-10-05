@@ -78,9 +78,9 @@ export const notifyOrderStatusChange = (
   const msg = STATUS_MESSAGES[status];
   if (!msg) return;
 
-  sendLocalNotification(
+  void sendLocalNotification(
     msg.title,
     `Pedido #${orderNumber} — ${msg.body}`,
     { orderId: String(orderNumber) },
-  );
+  ).catch(error => console.warn('[Notifications] No se pudo mostrar el aviso', error));
 };

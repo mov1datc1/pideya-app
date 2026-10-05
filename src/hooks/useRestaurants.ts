@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Restaurant, MenuItem, MenuItemOption } from '../types/database';
 import * as restaurantService from '../services/restaurants';
+import { parseAppError } from '../utils/errorHandler';
 
 export const useRestaurants = (zone?: string) => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -14,7 +15,7 @@ export const useRestaurants = (zone?: string) => {
       const data = await restaurantService.getRestaurants(zone);
       setRestaurants(data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al cargar restaurantes');
+      setError(parseAppError(err, 'Error al cargar restaurantes'));
     } finally {
       setLoading(false);
     }
@@ -34,7 +35,7 @@ export const useRestaurants = (zone?: string) => {
       const data = await restaurantService.searchRestaurants(query);
       setRestaurants(data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error en busqueda');
+      setError(parseAppError(err, 'Error en busqueda de restaurantes'));
     } finally {
       setLoading(false);
     }
@@ -61,7 +62,7 @@ export const useRestaurantMenu = (restaurantId: string) => {
         setCategories(cats);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Error al cargar menu');
+        setError(parseAppError(err, 'Error al cargar el menú del restaurante'));
       })
       .finally(() => setLoading(false));
   }, [restaurantId]);

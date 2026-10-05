@@ -13,7 +13,6 @@ const iconSizes = { sm: 32, md: 48, lg: 72 };
 export const LogoLockup: React.FC<LogoLockupProps> = ({ size = 'md' }) => {
   return (
     <View style={styles.container}>
-      <AgaveIcon size={iconSizes[size]} />
       <Logo size={size} />
     </View>
   );

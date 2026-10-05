@@ -13,72 +13,73 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, textStyles, radius, fonts } from '../../theme';
-import { RootStackParamList } from '../../types/navigation';
+import { colors, spacing, radius, fonts } from '../../theme';
+import type { RootStackParamList } from '../../types/navigation';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 interface Slide {
   key: string;
+  stepNumber: string;
+  stepBadge: string;
   title: string;
   subtitle: string;
-  emoji: string;
-  color: string;
+  iconName: keyof typeof Ionicons.glyphMap;
+  pillText: string;
 }
 
 const slides: Slide[] = [
   {
     key: '1',
-    title: 'Busca y Elige',
-    subtitle: 'Encuentra tus restaurantes, farmacias y tiendas favoritas en un solo lugar.',
-    emoji: '🛍️',
-    color: '#FF6B6B',
+    stepNumber: '1',
+    stepBadge: 'Paso 1: Tu Ubicación Esencial',
+    title: 'Confirma Tu Ubicación',
+    subtitle:
+      'Ingresa tu dirección para descubrir los restaurantes, supermercados con picking asistido y farmacias que entregan en tu zona.',
+    iconName: 'location-sharp',
+    pillText: '1: Ubicación',
   },
   {
     key: '2',
-    title: 'Arma tu Pedido',
-    subtitle: 'Agrega productos y personalízalos a tu gusto (¡comida o despensa!).',
-    emoji: '🛒',
-    color: '#4ECDC4',
+    stepNumber: '2',
+    stepBadge: 'Paso 2: Explora Todo Tu Municipio',
+    title: 'Restaurantes, Súper y Farmacia',
+    subtitle:
+      'Explora múltiples categorías. Elige tus platillos favoritos o arma tu despensa semanal con preferencias de sustitutos.',
+    iconName: 'basket-sharp',
+    pillText: '2: Tiendas',
   },
   {
     key: '3',
-    title: 'Entrega Flash',
-    subtitle: 'Sigue a tu repartidor en el mapa en tiempo real hasta que llegue a tus manos.',
-    emoji: '🛵',
-    color: '#FFD166',
-  },
-  {
-    key: '4',
-    title: '¡Plug & Play!',
-    subtitle: 'Paga en efectivo, OXXO o tarjeta. Así de fácil, tu comida lista para disfrutar.',
-    emoji: '🎉',
-    color: '#45B7D1',
+    stepNumber: '3',
+    stepBadge: 'Paso 3: Rastreo en Vivo',
+    title: 'Entrega Ultra Rápida a Tu Puerta',
+    subtitle:
+      'Sigue en vivo la ruta del repartidor en el mapa desde el momento de preparación hasta que llega a tus manos.',
+    iconName: 'navigate-sharp',
+    pillText: '3: Entrega',
   },
 ];
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
-export const OnboardingScreen: React.FC<Props> = ({ route }) => {
+export const OnboardingScreen: React.FC<Props> = ({ route, navigation }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const scrollX = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
 
   const handleGetStarted = () => {
-    // Notify AppNavigator that onboarding is complete
     if (route.params?.onComplete) {
       route.params.onComplete();
     }
   };
 
-  const isLast = activeIndex === slides.length - 1;
-
   const handleNext = () => {
-    if (isLast) {
-      handleGetStarted();
-    } else {
+    if (activeIndex < slides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
+    } else {
+      handleGetStarted();
     }
   };
 
@@ -96,47 +97,41 @@ export const OnboardingScreen: React.FC<Props> = ({ route }) => {
           setActiveIndex(index);
         }
       },
-    }
+    },
   );
 
   const renderSlide = ({ item, index }: { item: Slide; index: number }) => {
     const inputRange = [(index - 1) * width, index * width, (index + 1) * width];
 
-    const translateY = scrollX.interpolate({
-      inputRange,
-      outputRange: [50, 0, -50],
-      extrapolate: 'clamp',
-    });
-
     const scale = scrollX.interpolate({
       inputRange,
-      outputRange: [0.8, 1, 0.8],
+      outputRange: [0.85, 1, 0.85],
       extrapolate: 'clamp',
     });
 
     const opacity = scrollX.interpolate({
       inputRange,
-      outputRange: [0, 1, 0],
+      outputRange: [0.4, 1, 0.4],
       extrapolate: 'clamp',
     });
 
     return (
       <View style={styles.slide}>
-        <Animated.View
-          style={[
-            styles.emojiContainer,
-            {
-              backgroundColor: item.color + '20',
-              transform: [{ translateY }, { scale }],
-              opacity,
-            },
-          ]}
-        >
-          <Text style={styles.emoji}>{item.emoji}</Text>
-        </Animated.View>
-        <Animated.View style={[styles.textContainer, { opacity, transform: [{ translateY }] }]}>
-          <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.subtitle}>{item.subtitle}</Text>
+        {/* Glassmorphic Hero Container */}
+        <Animated.View style={[styles.heroCard, { transform: [{ scale }], opacity }]}>
+          <View style={styles.stepBadgeChip}>
+            <Ionicons name={item.iconName} size={16} color={colors.agave} />
+            <Text style={styles.stepBadgeText}>{item.stepBadge}</Text>
+          </View>
+
+          <View style={styles.iconCircleOuter}>
+            <View style={styles.iconCircleInner}>
+              <Ionicons name={item.iconName} size={48} color={colors.agave} />
+            </View>
+          </View>
+
+          <Text style={styles.slideTitle}>{item.title}</Text>
+          <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
         </Animated.View>
       </View>
     );
@@ -144,28 +139,19 @@ export const OnboardingScreen: React.FC<Props> = ({ route }) => {
 
   return (
     <View style={styles.container}>
-      {/* Background color transition based on scroll */}
-      <Animated.View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: scrollX.interpolate({
-              inputRange: slides.map((_, i) => i * width),
-              outputRange: slides.map((s) => s.color + '10'),
-            }),
-          },
-        ]}
-      />
-
-      {/* Skip Button */}
+      {/* Top Header */}
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        {!isLast && (
-          <TouchableOpacity onPress={handleSkip} style={styles.skipBtn}>
-            <Text style={styles.skipText}>Omitir</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.brandBadge}>
+          <Ionicons name="flash-sharp" size={18} color={colors.agave} />
+          <Text style={styles.brandBadgeText}>PideYa</Text>
+        </View>
+
+        <TouchableOpacity onPress={handleSkip} style={styles.skipBtn} activeOpacity={0.7}>
+          <Text style={styles.skipText}>Omitir</Text>
+        </TouchableOpacity>
       </View>
 
+      {/* Main Slides Carousel */}
       <Animated.FlatList
         ref={flatListRef}
         data={slides}
@@ -176,39 +162,46 @@ export const OnboardingScreen: React.FC<Props> = ({ route }) => {
         onScroll={onScroll}
         scrollEventThrottle={16}
         keyExtractor={(item) => item.key}
+        contentContainerStyle={{ alignItems: 'center' }}
       />
 
-      {/* Footer (Dots + Button) */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing['2xl'] }]}>
-        <View style={styles.dotsContainer}>
-          {slides.map((_, i) => {
-            const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
-            const dotWidth = scrollX.interpolate({
-              inputRange,
-              outputRange: [8, 24, 8],
-              extrapolate: 'clamp',
-            });
-            const opacity = scrollX.interpolate({
-              inputRange,
-              outputRange: [0.3, 1, 0.3],
-              extrapolate: 'clamp',
-            });
+      {/* Footer Section */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
+        {/* Stepper Progress Indicator Pills (1: Ubicación | 2: Tiendas | 3: Entrega) */}
+        <View style={styles.stepperPillsRow}>
+          {slides.map((s, i) => {
+            const isActive = i === activeIndex;
             return (
-              <Animated.View
-                key={i}
-                style={[styles.dot, { width: dotWidth, opacity, backgroundColor: slides[i].color }]}
-              />
+              <TouchableOpacity
+                key={s.key}
+                style={[styles.stepperPill, isActive && styles.stepperPillActive]}
+                onPress={() => flatListRef.current?.scrollToIndex({ index: i, animated: true })}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.stepperPillText, isActive && styles.stepperPillTextActive]}>
+                  {s.pillText}
+                </Text>
+              </TouchableOpacity>
             );
           })}
         </View>
 
+        {/* Primary CTA Action Button (54px Agave Teal) */}
+        <TouchableOpacity style={styles.mainCtaBtn} onPress={handleNext} activeOpacity={0.88}>
+          <Ionicons name="location-outline" size={20} color={colors.white} />
+          <Text style={styles.mainCtaText}>
+            {activeIndex === 0 ? 'Establecer Ubicación y Explorar' : 'Continuar'}
+          </Text>
+          <Ionicons name="arrow-forward" size={18} color={colors.white} />
+        </TouchableOpacity>
+
+        {/* Secondary Login / Account Link */}
         <TouchableOpacity
-          style={[styles.mainBtn, { backgroundColor: slides[activeIndex].color }]}
-          onPress={handleNext}
-          activeOpacity={0.9}
+          style={styles.secondaryBtn}
+          onPress={handleGetStarted}
+          activeOpacity={0.7}
         >
-          <Text style={styles.mainBtnText}>{isLast ? '¡Empezar a pedir!' : 'Siguiente'}</Text>
-          {!isLast && <Ionicons name="arrow-forward" size={20} color={colors.white} />}
+          <Text style={styles.secondaryBtnText}>Iniciar Sesión / Crear Cuenta</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -218,93 +211,166 @@ export const OnboardingScreen: React.FC<Props> = ({ route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: '#F8FAFB',
   },
   header: {
     paddingHorizontal: spacing.lg,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    alignItems: 'center',
+    justifyContent: 'space-between',
     zIndex: 10,
   },
-  skipBtn: {
-    paddingVertical: 8,
+  brandBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#E8F5F2',
     paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  brandBadgeText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 16,
+    color: colors.agave,
+  },
+  skipBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: colors.cloud,
+    borderRadius: radius.sm,
   },
   skipText: {
     fontFamily: fonts.outfit.medium,
-    fontSize: 15,
-    color: colors['ink-muted'],
+    fontSize: 13,
+    color: colors['ink-secondary'],
   },
   slide: {
     width,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing['3xl'],
+    paddingHorizontal: spacing.lg,
   },
-  emojiContainer: {
-    width: width * 0.6,
-    height: width * 0.6,
-    borderRadius: width * 0.3,
+  heroCard: {
+    width: width - spacing.lg * 2,
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: spacing.xl,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(45,139,122,0.15)',
+    shadowColor: '#2D8B7A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  stepBadgeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors['agave-light'],
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    marginBottom: spacing.lg,
+  },
+  stepBadgeText: {
+    fontFamily: fonts.outfit.semiBold,
+    fontSize: 12,
+    color: colors['agave-dark'],
+  },
+  iconCircleOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(45,139,122,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing['3xl'],
+    marginBottom: spacing.lg,
   },
-  emoji: {
-    fontSize: 100,
-  },
-  textContainer: {
+  iconCircleInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.white,
+    justifyContent: 'center',
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
   },
-  title: {
-    ...textStyles.h1,
+  slideTitle: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 22,
     color: colors.ink,
     textAlign: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  subtitle: {
-    ...textStyles.body,
+  slideSubtitle: {
+    fontFamily: fonts.outfit.regular,
+    fontSize: 14,
     color: colors['ink-secondary'],
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 22,
   },
   footer: {
-    paddingHorizontal: spacing['2xl'],
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    paddingHorizontal: spacing.lg,
   },
-  dotsContainer: {
+  stepperPillsRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing['2xl'],
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
   },
-  dot: {
-    height: 8,
-    borderRadius: 4,
+  stepperPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.cloud,
   },
-  mainBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: 18,
-    borderRadius: radius.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+  stepperPillActive: {
+    backgroundColor: colors.agave,
   },
-  mainBtnText: {
+  stepperPillText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 12,
+    color: colors['ink-secondary'],
+  },
+  stepperPillTextActive: {
     fontFamily: fonts.outfit.bold,
-    fontSize: 17,
     color: colors.white,
+  },
+  mainCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    height: 54,
+    backgroundColor: colors.agave,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+    elevation: 4,
+    shadowColor: '#2D8B7A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+  },
+  mainCtaText: {
+    fontFamily: fonts.outfit.bold,
+    fontSize: 16,
+    color: colors.white,
+  },
+  secondaryBtn: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  secondaryBtnText: {
+    fontFamily: fonts.outfit.medium,
+    fontSize: 14,
+    color: colors.agave,
   },
 });

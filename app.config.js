@@ -1,5 +1,8 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
-require('dotenv').config();
+try {
+  require('dotenv').config({ quiet: true });
+} catch (_e) {
+  // Expo loads EXPO_PUBLIC_ env vars automatically
+}
 
 const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
@@ -7,7 +10,8 @@ module.exports = {
   expo: {
     name: 'Pide ya',
     slug: 'pide-ya',
-    version: '1.0.0',
+    version: '1.2.1',
+    jsEngine: 'hermes',
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -31,7 +35,7 @@ module.exports = {
     ],
     ios: {
       supportsTablet: false,
-      bundleIdentifier: 'com.pideya.app',
+      bundleIdentifier: 'com.movidatci.pideya',
       config: {
         googleMapsApiKey: GOOGLE_MAPS_KEY,
       },
@@ -45,13 +49,13 @@ module.exports = {
         backgroundColor: '#FFFFFF',
         foregroundImage: './assets/adaptive-icon.png',
       },
-      package: 'com.pideya.app',
+      package: 'com.movidatci.pideya',
       config: {
         googleMaps: {
           apiKey: GOOGLE_MAPS_KEY,
         },
       },
-      permissions: ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION'],
+      permissions: ['ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'INTERNET'],
     },
     web: {
       favicon: './assets/favicon.png',

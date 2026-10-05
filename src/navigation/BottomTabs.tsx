@@ -8,6 +8,11 @@ import { ProfileScreen } from '../screens/main/ProfileScreen';
 import { colors, fonts } from '../theme';
 import { MainTabParamList } from '../types/navigation';
 
+import { ScreenErrorBoundary } from '../components/ScreenErrorBoundary';
+
+const SafeOrdersScreen = () => <ScreenErrorBoundary screen="Pedidos"><OrdersScreen /></ScreenErrorBoundary>;
+const SafeTrackingScreen = () => <ScreenErrorBoundary screen="Rastreo"><TrackingScreen /></ScreenErrorBoundary>;
+
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const tabIcons: Record<keyof MainTabParamList, string> = {
@@ -49,8 +54,8 @@ export const BottomTabs: React.FC = () => {
       })}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} />
-      <Tab.Screen name="OrdersTab" component={OrdersScreen} />
-      <Tab.Screen name="TrackingTab" component={TrackingScreen} />
+      <Tab.Screen name="OrdersTab" component={SafeOrdersScreen} />
+      <Tab.Screen name="TrackingTab" component={SafeTrackingScreen} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} />
     </Tab.Navigator>
   );

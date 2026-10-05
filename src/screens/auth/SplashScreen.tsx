@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { AgaveIcon } from '../../components/branding/AgaveIcon';
+import { Image } from 'react-native';
 import { Logo } from '../../components/branding/Logo';
 import { colors, spacing } from '../../theme';
 import { AuthStackParamList } from '../../types/navigation';
@@ -17,20 +17,17 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
 
   useEffect(() => {
     Animated.sequence([
-      // Pop-in del isotipo
       Animated.spring(scaleAnim, {
         toValue: 1,
         tension: 50,
         friction: 7,
         useNativeDriver: true,
       }),
-      // Fade-in del logotipo
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
       }),
-      // Barra de carga
       Animated.timing(barWidth, {
         toValue: 1,
         duration: 1200,
@@ -49,7 +46,10 @@ export const SplashScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <AgaveIcon size={80} color={colors.white} />
+        <Image
+          source={require('../../../assets/adaptive-icon.png')}
+          style={{ width: 140, height: 60, resizeMode: 'contain' }}
+        />
       </Animated.View>
 
       <Animated.View style={{ opacity: fadeAnim, marginTop: spacing.md }}>

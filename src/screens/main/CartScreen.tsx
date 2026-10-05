@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FirstOrderGuideCard, useFirstOrderGuide } from '../../components/guidedTour/FirstOrderGuide';
 import { useCart } from '../../hooks/useCart';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
@@ -43,6 +44,7 @@ const buildCartShareText = (restaurantName: string, items: CartItem[], total: nu
 };
 
 export const CartScreen: React.FC = () => {
+  const guide = useFirstOrderGuide();
   const navigation = useNavigation<NavType>();
   const insets = useSafeAreaInsets();
   const {
@@ -54,6 +56,7 @@ export const CartScreen: React.FC = () => {
     itemCount,
     isEmpty,
   } = useCart();
+  React.useEffect(() => { if (guide.loaded && !isEmpty) guide.advance('cart'); }, [guide.loaded, guide.advance, isEmpty]);
 
   const handleClear = () => {
     Alert.alert('Vaciar carrito', 'Estas seguro?', [
@@ -62,24 +65,17 @@ export const CartScreen: React.FC = () => {
     ]);
   };
 
-  const handleShareWhatsApp = () => {
-    const text = buildCartShareText(cart.restaurant_name, cart.items, itemsTotal);
-    const encoded = encodeURIComponent(text);
-    const url = `whatsapp://send?text=${encoded}`;
-
-    Linking.canOpenURL(url).then((supported) => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        // Fallback to generic share
-        Share.share({ message: text });
-      }
-    });
-  };
-
   const handleShare = () => {
     const text = buildCartShareText(cart.restaurant_name, cart.items, itemsTotal);
-    Share.share({ message: text });
+    Share.share(
+      {
+        message: text,
+        title: `Mi carrito de ${cart.restaurant_name} en PideYa`,
+      },
+      {
+        dialogTitle: `Compartir carrito de ${cart.restaurant_name}`,
+      }
+    );
   };
 
   const renderItem = ({ item }: { item: CartItem }) => {
@@ -140,9 +136,6 @@ export const CartScreen: React.FC = () => {
         <Text style={styles.headerTitle}>Tu carrito</Text>
         {!isEmpty && (
           <View style={styles.headerActions}>
-            <TouchableOpacity onPress={handleShareWhatsApp} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="logo-whatsapp" size={22} color="#25D366" />
-            </TouchableOpacity>
             <TouchableOpacity onPress={handleShare} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="share-outline" size={22} color={colors.agave} />
             </TouchableOpacity>
@@ -172,6 +165,7 @@ export const CartScreen: React.FC = () => {
 
           {/* Items list */}
           <FlatList
+            ListHeaderComponent={<FirstOrderGuideCard stage="cart" />}
             data={cart.items}
             renderItem={renderItem}
             keyExtractor={(item, idx) => `${item.menu_item.id}-${idx}`}
