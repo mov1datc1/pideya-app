@@ -28,7 +28,8 @@ test('pharmacy always asks, restaurants omit substitutions, groceries keep chose
   const { orderPickingPreferences } = load('utils/pickingPreferences.ts');
   const preferences = { on_unavailable: 'substitute', on_less_quantity: 'accept_available' };
   assert.equal(orderPickingPreferences('prepared', preferences), undefined);
-  assert.equal(orderPickingPreferences('picked', preferences), preferences);
+  assert.deepEqual(orderPickingPreferences('picked', preferences), { on_unavailable: 'remove', on_less_quantity: 'accept_available' });
+  assert.equal(orderPickingPreferences('picked', { ...preferences, on_less_quantity: 'remove' }).on_less_quantity, 'remove');
   assert.deepEqual(orderPickingPreferences('pharmacy', preferences), { on_unavailable: 'ask_me', on_less_quantity: 'ask_me' });
   assert.equal(preferences.on_unavailable, 'substitute');
 });
@@ -247,4 +248,21 @@ test('order creation uses authenticated identity and history supports account lo
   assert.deepEqual(calls.find(c=>c[0]==='range'),['range',50,99]);
   assert.match(calls.find(c=>c[0]==='or')[1],/client_user_id.eq.account-uuid/);
   assert.match(calls.find(c=>c[0]==='or')[1],/client_user_id.is.null/);
+});
+
+test('one remaining pizza size replaces base price; cheap sizes never become extras', () => {
+  const { classifyOptions } = load('utils/menuOptions.ts');
+  const single = { id: 's', price: 149, option_type: 'size', available: true };
+  assert.deepEqual(classifyOptions([single], 149).sizes, [single]);
+  assert.equal(classifyOptions([{...single, price: 5}], 149).sizes.length, 1);
+  assert.equal(classifyOptions([{...single, available:false}], 149).sizes.length, 0);
+  assert.equal(classifyOptions([{...single, option_type:'extra', price:0}], 149).extras.length, 1);
+});
+test('cart identity preserves pizza toppings and kitchen notes, independent of extra selection order', () => {
+  const { cartLineKey } = load('utils/menuOptions.ts');
+  const base = { menu_item: {id:'pizza',name:'Pizza (Mediana)',price:199}, notes:'', quantity:1, selected_options:[] };
+  const cheese={id:'cheese',price:25}, pepperoni={id:'pepperoni',price:30};
+  assert.notEqual(cartLineKey(base), cartLineKey({...base,selected_options:[cheese]}));
+  assert.notEqual(cartLineKey(base), cartLineKey({...base,notes:'Sin cebolla'}));
+  assert.equal(cartLineKey({...base,selected_options:[cheese,pepperoni]}),cartLineKey({...base,selected_options:[pepperoni,cheese],quantity:3}));
 });

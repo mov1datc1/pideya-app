@@ -29,34 +29,7 @@ import { getFlowTypeForRestaurant } from '../../services/picking';
 type RouteType = RouteProp<RootStackParamList, 'RestaurantDetail'>;
 type NavType = NativeStackNavigationProp<RootStackParamList>;
 
-/**
- * Classify options using the DB option_type field.
- * Falls back to price heuristic if option_type is missing (old data).
- */
-const classifyOptions = (options: MenuItemOption[], basePrice: number) => {
-  const sizes: MenuItemOption[] = [];
-  const extras: MenuItemOption[] = [];
-
-  for (const opt of options) {
-    if (opt.option_type === 'size') {
-      sizes.push(opt);
-    } else if (opt.option_type === 'extra') {
-      extras.push(opt);
-    } else {
-      // Fallback heuristic for old data without option_type
-      if (opt.price >= basePrice * 0.8) {
-        sizes.push(opt);
-      } else {
-        extras.push(opt);
-      }
-    }
-  }
-
-  // Only treat as sizes if there are 2+ variants
-  if (sizes.length >= 2) return { sizes, extras };
-  if (sizes.length === 1) return { sizes: [], extras: [...sizes, ...extras] };
-  return { sizes: [], extras };
-};
+import { classifyOptions } from '../../utils/menuOptions';
 
 export const RestaurantDetailScreen: React.FC = () => {
   const route = useRoute<RouteType>();
@@ -93,6 +66,8 @@ export const RestaurantDetailScreen: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const [optionsError, setOptionsError] = useState(false);
+  const optionRequest = React.useRef(0);
   const [savingList, setSavingList] = useState(false);
 
   const getItemQtyInCart = useCallback(
@@ -163,6 +138,9 @@ export const RestaurantDetailScreen: React.FC = () => {
   }, [itemOptions, selectedItem]);
 
   const openItemDetail = useCallback(async (item: MenuItem) => {
+    const request = ++optionRequest.current;
+    setItemOptions([]);
+    setOptionsError(false);
     setSelectedItem(item);
     setQuantity(1);
     setNotes('');
@@ -171,15 +149,16 @@ export const RestaurantDetailScreen: React.FC = () => {
     setLoadingOptions(true);
     try {
       const opts = await restaurantService.getMenuItemOptions(item.id);
+      if (request !== optionRequest.current) return;
       setItemOptions(opts);
       const cls = classifyOptions(opts, item.price);
       if (cls.sizes.length > 0) {
         setSelectedSize(cls.sizes[0]);
       }
     } catch {
-      setItemOptions([]);
+      if (request === optionRequest.current) { setItemOptions([]); setOptionsError(true); }
     } finally {
-      setLoadingOptions(false);
+      if (request === optionRequest.current) setLoadingOptions(false);
     }
   }, []);
 
@@ -200,7 +179,7 @@ export const RestaurantDetailScreen: React.FC = () => {
   const itemTotal = unitPrice * quantity;
 
   const handleAddToCart = () => {
-    if (!selectedItem) return;
+    if (!selectedItem || loadingOptions || optionsError) return;
 
     // If sizes exist and none selected, prompt user
     if (classified.sizes.length > 0 && !selectedSize) {
@@ -510,7 +489,7 @@ export const RestaurantDetailScreen: React.FC = () => {
                       <View style={styles.optionsSection}>
                         <View style={styles.optionsSectionHeader}>
                           <View>
-                            <Text style={styles.optionsTitle}>Tamano</Text>
+                            <Text style={styles.optionsTitle}>Tamaño</Text>
                             <Text style={styles.optionsSubtitle}>Elige una opcion</Text>
                           </View>
                           <View style={styles.requiredBadge}>
@@ -624,7 +603,8 @@ export const RestaurantDetailScreen: React.FC = () => {
             )}
 
             {/* Add to cart button */}
-            <TouchableOpacity style={styles.addToCartBtn} onPress={handleAddToCart}>
+            {optionsError && <Text accessibilityRole="alert" style={{ color: colors.error, padding: 12 }}>No se pudieron cargar las opciones. Cierra y vuelve a abrir el producto para reintentar.</Text>}
+            <TouchableOpacity style={[styles.addToCartBtn, (loadingOptions || optionsError) && { opacity: 0.5 }]} disabled={loadingOptions || optionsError} onPress={handleAddToCart}>
               <Text style={styles.addToCartText}>
                 Agregar al carrito  ·  ${itemTotal.toFixed(2)}
               </Text>

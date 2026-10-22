@@ -1,3 +1,4 @@
+import { shouldDisplayEvent } from './notificationDevice';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -6,13 +7,10 @@ import { supabase } from './supabase';
 
 // Configurar como se muestran las notificaciones cuando la app esta abierta
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async notification => {
+    const show = await shouldDisplayEvent(notification.request.content.data || {});
+    return { shouldShowAlert: show, shouldPlaySound: show, shouldSetBadge: false, shouldShowBanner: show, shouldShowList: show };
+  },
 });
 
 /**
@@ -23,6 +21,15 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
   if (!Device.isDevice) {
     console.warn('Push notifications solo funcionan en dispositivos fisicos');
     return null;
+  }
+
+  // Android necesita canal de notificaciones
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Pide ya',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+    });
   }
 
   const { status: existingStatus } =
@@ -39,16 +46,7 @@ export const registerForPushNotifications = async (): Promise<string | null> => 
     return null;
   }
 
-  // Android necesita canal de notificaciones
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Pide ya',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-    });
-  }
-
-  const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+  const projectId = Constants.easConfig?.projectId || Constants.expoConfig?.extra?.eas?.projectId;
   const token = (
     await Notifications.getExpoPushTokenAsync({
       projectId,
@@ -76,7 +74,6 @@ export const savePushToken = async (
       return;
     }
 
-    console.log('[PideYa] savePushToken: saving token for', clientPhone, 'user', user.id);
 
     // Save to push_tokens table (used by pg_net trigger for real push)
     const { error: upsertError } = await supabase

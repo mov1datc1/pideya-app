@@ -6,22 +6,9 @@ import type { Restaurant, MenuItem, MenuItemOption } from '../types/database';
  * Opcionalmente filtra por zona/texto.
  */
 export const getRestaurants = async (zone?: string) => {
-  let query = supabase
-    .from('restaurants')
-    .select('*')
-    .eq('status', 'ACTIVE')
-    .order('name');
-
-  if (zone) {
-    query = query.contains('zones', [zone]);
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    console.error('[PideYa] getRestaurants error:', JSON.stringify(error));
-    throw error;
-  }
-  return data as Restaurant[];
+  const { data, error } = await supabase.rpc('customer_businesses');
+  if (error) throw error;
+  return (data as Restaurant[]).filter(r => !zone || r.zones?.includes(zone));
 };
 
 export const getRestaurantById = async (id: string) => {

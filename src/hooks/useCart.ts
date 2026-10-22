@@ -1,3 +1,4 @@
+import { cartLineKey } from '../utils/menuOptions';
 import React, { useState, useEffect, useCallback, useContext, createContext, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
@@ -36,8 +37,8 @@ interface CartContextValue {
     notes: string,
     selectedOptions: MenuItemOption[],
   ) => void;
-  removeItem: (menuItemId: string, menuItemName?: string) => void;
-  updateQuantity: (menuItemId: string, quantity: number, menuItemName?: string) => void;
+  removeItem: (menuItemId: string, menuItemName?: string, lineKey?: string) => void;
+  updateQuantity: (menuItemId: string, quantity: number, menuItemName?: string, lineKey?: string) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setDeliveryType: (type: DeliveryType) => void;
   setDeliveryAddress: (text: string, lat: number, lng: number, note: string) => void;
@@ -92,7 +93,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         const existingIdx = prev.items.findIndex(
-          (i) => i.menu_item.id === menuItem.id && i.menu_item.name === menuItem.name,
+          (i) => cartLineKey(i) === cartLineKey({ menu_item: menuItem, quantity, notes, selected_options: selectedOptions }),
         );
 
         const newItems = [...prev.items];
@@ -118,11 +119,11 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     [],
   );
 
-  const removeItem = useCallback((menuItemId: string, menuItemName?: string) => {
+  const removeItem = useCallback((menuItemId: string, menuItemName?: string, lineKey?: string) => {
     setCart((prev) => ({
       ...prev,
       items: prev.items.filter((i) =>
-        menuItemName
+        lineKey ? cartLineKey(i) !== lineKey : menuItemName
           ? !(i.menu_item.id === menuItemId && i.menu_item.name === menuItemName)
           : i.menu_item.id !== menuItemId,
       ),
@@ -130,15 +131,15 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const updateQuantity = useCallback(
-    (menuItemId: string, quantity: number, menuItemName?: string) => {
+    (menuItemId: string, quantity: number, menuItemName?: string, lineKey?: string) => {
       if (quantity <= 0) {
-        removeItem(menuItemId, menuItemName);
+        removeItem(menuItemId, menuItemName, lineKey);
         return;
       }
       setCart((prev) => ({
         ...prev,
         items: prev.items.map((i) =>
-          menuItemName
+          lineKey ? (cartLineKey(i) === lineKey ? { ...i, quantity } : i) : menuItemName
             ? (i.menu_item.id === menuItemId && i.menu_item.name === menuItemName ? { ...i, quantity } : i)
             : (i.menu_item.id === menuItemId ? { ...i, quantity } : i),
         ),

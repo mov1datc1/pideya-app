@@ -1,5 +1,10 @@
 # PideYa — App Cliente — Changelog
 
+## En desarrollo — 2026-10-21: notificaciones durables
+- Registro de dispositivo por cuenta, rotación, revocación y deduplicación; apertura de pedidos desde avisos validada por RLS.
+- Historial ignora actualizaciones exclusivas de GPS; fallback de consulta solo cuando falla Realtime o la consulta.
+- Backend v2 opt-in: EXPO_PUBLIC_NOTIFICATION_V2=true; requiere migraciones 031/032 y trabajador del repositorio rancho_eats. No activado en producción.
+
 > Package: `com.movidatci.pideya` | Expo SDK 54 | RN 0.81.5
 
 ---
@@ -76,3 +81,8 @@
 | Fecha | Version | vCode | Notas |
 |-------|---------|-------|-------|
 | Jul 2026 | 1.0.5 | 7 | Versión estable actual en Play Store |
+
+
+### Revisión de catálogo — 21 de octubre de 2026 (local)
+
+Cliente: se separan líneas por extras/notas; un tamaño único conserva precio completo; se bloquea añadir si fallan opciones. 23 pruebas y exportación Android correctas.

@@ -96,7 +96,7 @@ export const CheckoutScreen: React.FC = () => {
     const profileId = user?.id;
     if (profileId && showPickingPrefs) {
       getPickingPreferences(profileId).then((saved) => {
-        if (saved) setPickingPrefs(saved);
+        if (saved) setPickingPrefs({ ...saved, on_unavailable: 'remove', on_less_quantity: saved.on_less_quantity === 'remove' ? 'remove' : 'accept_available' });
       }).catch(() => {});
     }
   }, [user?.id, showPickingPrefs]);
@@ -476,7 +476,7 @@ export const CheckoutScreen: React.FC = () => {
               <Text style={styles.sectionTitle}>Preferencias de Surtido</Text>
             </View>
             <Text style={{ ...textStyles.caption, color: colors['ink-secondary'], marginBottom: spacing.md }}>
-              Elige qué hacer si un producto no está disponible o hay menos cantidad.
+              Si falta un producto, se quita y no se cobra. Si hay menos cantidad, puedes recibir lo disponible pagando proporcionalmente. No hacemos sustituciones durante el piloto.
             </Text>
 
             {flowType === 'pharmacy' ? <Text style={textStyles.body}>Si falta un producto o cambia la cantidad, la farmacia te consultará antes de hacer cualquier cambio.</Text> : <>
@@ -484,9 +484,9 @@ export const CheckoutScreen: React.FC = () => {
             <Text style={{ ...textStyles.label, marginBottom: spacing.xs, fontWeight: '700' }}>Si un producto no está disponible:</Text>
             <View style={{ flexDirection: 'row', gap: spacing.xs, marginBottom: spacing.md, flexWrap: 'wrap' }}>
               {[
-                { value: 'substitute' as const, label: '🔄 Sustituir', desc: 'Recomendado' },
-                { value: 'remove' as const, label: '❌ Quitar', desc: '' },
-                { value: 'ask_me' as const, label: '💬 Preguntarme', desc: '' },
+                
+                { value: 'remove' as const, label: 'Quitar sin cobrar', desc: 'Sin sustituciones durante el piloto' },
+                
               ].map((opt) => (
                 <TouchableOpacity
                   key={opt.value}
@@ -512,7 +512,7 @@ export const CheckoutScreen: React.FC = () => {
               {[
                 { value: 'accept_available' as const, label: '✅ Aceptar disponible', desc: 'Recomendado' },
                 { value: 'remove' as const, label: '❌ Quitar', desc: '' },
-                { value: 'ask_me' as const, label: '💬 Preguntarme', desc: '' },
+                
               ].map((opt) => (
                 <TouchableOpacity
                   key={opt.value}

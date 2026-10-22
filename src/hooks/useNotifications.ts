@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+import { AppState } from 'react-native';
+import { notificationV2, watchNotificationDevice } from '../services/notificationDevice';
+import { supabase } from '../services/supabase';
 import { useAuth } from './useAuth';
 import {
   registerForPushNotifications,
   savePushToken,
-  addNotificationResponseListener,
   sendLocalNotification,
 } from '../services/notifications';
 import type { OrderStatus } from '../types/database';
@@ -37,34 +39,28 @@ const STATUS_MESSAGES: Record<string, { title: string; body: string }> = {
  * Registers for push token and saves it to Supabase.
  */
 export const useNotificationSetup = () => {
-  const { profile } = useAuth();
-  const registered = useRef(false);
-
+  const { user, profile } = useAuth();
   useEffect(() => {
-    if (registered.current) return;
-    registered.current = true;
+    if (notificationV2) return watchNotificationDevice(supabase, 'client', user?.id || null);
+    if (!user?.id) return;
+    let disposed = false;
+    let running = false;
+    const register = async () => {
+      if (running || disposed) return;
+      running = true;
+      try {
+        const token = await registerForPushNotifications();
+        const { data } = await supabase.auth.getUser();
+        if (!disposed && token && data.user?.id === user.id) await savePushToken(profile?.phone || '', token);
+      } catch { console.warn('[Notifications] Registro pendiente; se reintentará al volver.'); }
+      finally { running = false; }
+    };
+    void register();
+    const listener = AppState.addEventListener('change', state => { if (state === 'active') void register(); });
+    return () => { disposed = true; listener.remove(); };
+  }, [user?.id, profile?.phone]);
 
-    (async () => {
-      console.log('[PideYa] useNotificationSetup: registering push, phone=', profile?.phone);
-      const token = await registerForPushNotifications();
-      console.log('[PideYa] useNotificationSetup: token=', token ? token.substring(0, 30) + '...' : 'null');
-      if (token && profile?.phone) {
-        await savePushToken(profile.phone, token);
-      } else {
-        console.warn('[PideYa] useNotificationSetup: skipping save, token=', !!token, 'phone=', profile?.phone);
-      }
-    })();
-  }, [profile?.phone]);
 
-  // Listen for notification taps (for future deep linking)
-  useEffect(() => {
-    const sub = addNotificationResponseListener((response) => {
-      const data = response.notification.request.content.data;
-      // Could navigate to order status screen here
-      console.log('Notification tapped:', data);
-    });
-    return () => sub.remove();
-  }, []);
 };
 
 /**
@@ -74,13 +70,15 @@ export const useNotificationSetup = () => {
 export const notifyOrderStatusChange = (
   status: OrderStatus,
   orderNumber: number,
+  orderId?: string,
 ) => {
+  if (notificationV2) return; // Server outbox owns visible push alerts.
   const msg = STATUS_MESSAGES[status];
   if (!msg) return;
 
   void sendLocalNotification(
     msg.title,
     `Pedido #${orderNumber} — ${msg.body}`,
-    { orderId: String(orderNumber) },
+    { orderId, orderNumber },
   ).catch(error => console.warn('[Notifications] No se pudo mostrar el aviso', error));
 };

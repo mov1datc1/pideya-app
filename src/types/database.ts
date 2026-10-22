@@ -267,7 +267,7 @@ export interface PickingPreferences {
 }
 
 export const DEFAULT_PICKING_PREFERENCES: PickingPreferences = {
-  on_unavailable: 'substitute',
+  on_unavailable: 'remove',
   on_less_quantity: 'accept_available',
   item_timeout_seconds: 300,
   summary_timeout_seconds: 900,

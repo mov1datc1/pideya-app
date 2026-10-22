@@ -1,3 +1,4 @@
+import { cartLineKey } from '../../utils/menuOptions';
 import React from 'react';
 import {
   View,
@@ -106,7 +107,7 @@ export const CartScreen: React.FC = () => {
         <View style={styles.qtyControls}>
           <TouchableOpacity
             style={styles.qtyBtn}
-            onPress={() => updateQuantity(item.menu_item.id, item.quantity - 1, item.menu_item.name)}
+            onPress={() => updateQuantity(item.menu_item.id, item.quantity - 1, item.menu_item.name, cartLineKey(item))}
           >
             <Ionicons
               name={item.quantity === 1 ? 'trash-outline' : 'remove'}
@@ -117,7 +118,7 @@ export const CartScreen: React.FC = () => {
           <Text style={styles.qtyText}>{item.quantity}</Text>
           <TouchableOpacity
             style={styles.qtyBtn}
-            onPress={() => updateQuantity(item.menu_item.id, item.quantity + 1, item.menu_item.name)}
+            onPress={() => updateQuantity(item.menu_item.id, item.quantity + 1, item.menu_item.name, cartLineKey(item))}
           >
             <Ionicons name="add" size={16} color={colors.ink} />
           </TouchableOpacity>
@@ -168,7 +169,7 @@ export const CartScreen: React.FC = () => {
             ListHeaderComponent={<FirstOrderGuideCard stage="cart" />}
             data={cart.items}
             renderItem={renderItem}
-            keyExtractor={(item, idx) => `${item.menu_item.id}-${idx}`}
+            keyExtractor={cartLineKey}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
           />

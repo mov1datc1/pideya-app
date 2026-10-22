@@ -91,44 +91,10 @@ export const getActiveOrders = async (clientPhone: string) => {
   return data as (Order & { restaurants: { name: string; logo_url: string | null } })[];
 };
 
-/** Cancelar pedido.
- * PENDING: any payment method can cancel.
- * ACCEPTED/ON_THE_WAY: only card payments can cancel (30% fee applied server-side).
- *
- * Se pasan currentStatus y paymentMethod directamente desde el state del componente
- * para evitar un SELECT adicional que puede fallar por RLS policies.
- */
-export const cancelOrder = async (
-  orderId: string,
-  currentStatus: OrderStatus,
-  paymentMethod: string,
-) => {
-  const canCancel =
-    currentStatus === 'PENDING' ||
-    (paymentMethod === 'card' &&
-      ['ACCEPTED', 'ON_THE_WAY'].includes(currentStatus));
-
-  if (!canCancel) {
-    throw new Error('Este pedido no puede cancelarse en este estado.');
-  }
-
-  const { data, error } = await supabase
-    .from('orders')
-    .update({
-      status: 'CANCELLED' as OrderStatus,
-      cancelled_at: new Date().toISOString(),
-      cancelled_by: 'client',
-    })
-    .eq('id', orderId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('[PideYa] cancelOrder error:', JSON.stringify(error));
-    throw new Error(
-      error.message || 'No se pudo cancelar el pedido. Intenta de nuevo.',
-    );
-  }
+/** Cancellation is decided atomically by the server, before merchant acceptance. */
+export const cancelOrder = async (orderId: string, _currentStatus: OrderStatus, _paymentMethod: string) => {
+  const { data, error } = await supabase.rpc('client_cancel_order', { p_order_id: orderId });
+  if (error) throw new Error(error.message);
   return data as Order;
 };
 

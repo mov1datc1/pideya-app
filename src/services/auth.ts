@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { unregisterNotificationDevice } from './notificationDevice';
 import type { UserProfile } from '../types/database';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
@@ -170,6 +171,7 @@ export const verifyOtp = async (phone: string, token: string) => {
 };
 
 export const signOut = async () => {
+  await unregisterNotificationDevice(supabase, 'client');
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
 };

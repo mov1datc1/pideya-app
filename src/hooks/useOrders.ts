@@ -8,7 +8,10 @@ import { supabase } from '../services/supabase';
 import { notifyOrderStatusChange } from './useNotifications';
 import { parseAppError } from '../utils/errorHandler';
 
-const POLL_INTERVAL = 8_000; // 8s fallback polling
+const POLL_INTERVAL = 15_000; // Used only while Realtime is unavailable.
+const orderSummaryKey = (order: Order) => JSON.stringify([
+  order.status, order.total, order.adjusted_total, order.delivery_driver_id,
+]);
 
 export const useOrders = (clientPhone: string) => {
   const focused = useIsFocused();
@@ -42,25 +45,35 @@ export const useOrders = (clientPhone: string) => {
     let alive = true;
     pagesLoaded.current = 1; setHasMore(false);
     let fetching = false;
+    let realtimeHealthy = false;
+    let fetchFailed = false;
+    let refreshQueued = false;
     const statuses: Record<string, string> = {};
+    const summaries: Record<string, string> = {};
     setState({ phone: clientPhone, orders: [], activeOrders: [], loading: !!clientPhone, error: null });
     if (!clientPhone) return;
 
     const fetchAll = async () => {
-      if (!alive || fetching || !focusedRef.current || AppState.currentState === 'background') return;
+      if (!alive || !focusedRef.current || AppState.currentState === 'background') return;
+      if (fetching) { refreshQueued = true; return; }
       fetching = true;
       try {
         const [orders, activeOrders] = await Promise.all([
           orderService.getOrderHistory(clientPhone), orderService.getActiveOrders(clientPhone),
         ]);
         if (alive) {
-          orders.forEach(order => { statuses[order.id] = order.status; });
+          fetchFailed = false;
+          orders.forEach(order => { statuses[order.id] = order.status; summaries[order.id] = orderSummaryKey(order); });
           if (pagesLoaded.current === 1) setHasMore(orders.length === 50);
           setState(previous => ({ phone: clientPhone, orders: [...orders, ...previous.orders.slice(50).filter(row => !orders.some(newRow => newRow.id === row.id))], activeOrders, loading: false, error: null }));
         }
       } catch (error) {
+        fetchFailed = true;
         if (alive) setState(s => ({ ...s, loading: false, error: parseAppError(error, 'Error al cargar los pedidos') }));
-      } finally { fetching = false; }
+      } finally {
+        fetching = false;
+        if (refreshQueued && alive) { refreshQueued = false; void fetchAll(); }
+      }
     };
     refreshRef.current = fetchAll;
     void fetchAll();
@@ -69,14 +82,21 @@ export const useOrders = (clientPhone: string) => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `client_phone=eq.${clientPhone}` }, payload => {
         const updated = payload.new as Order;
         if (updated?.id && updated?.status) {
+          const summary = orderSummaryKey(updated);
+          // GPS writes belong to the tracking map, not history/catalog refreshes.
+          if (summaries[updated.id] === summary) return;
+          summaries[updated.id] = summary;
           if (focusedRef.current && statuses[updated.id] && statuses[updated.id] !== updated.status) {
-            notifyOrderStatusChange(updated.status, updated.order_number);
+            notifyOrderStatusChange(updated.status, updated.order_number, updated.id);
           }
           statuses[updated.id] = updated.status;
         }
         void fetchAll();
-      }).subscribe();
-    const timer = setInterval(fetchAll, POLL_INTERVAL);
+      }).subscribe(status => {
+        realtimeHealthy = status === 'SUBSCRIBED';
+        if (realtimeHealthy) void fetchAll(); // Reconcile missed events on reconnect.
+      });
+    const timer = setInterval(() => { if (!realtimeHealthy || fetchFailed) void fetchAll(); }, POLL_INTERVAL + Math.random() * 5000);
     const appState = AppState.addEventListener('change', status => { if (status === 'active') void fetchAll(); });
     return () => { alive = false; appState.remove(); clearInterval(timer); void supabase.removeChannel(channel); };
   }, [clientPhone]);

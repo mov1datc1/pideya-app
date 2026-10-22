@@ -1,3 +1,4 @@
+import OrderTimeProposal from '../../components/OrderTimeProposal';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -86,7 +87,7 @@ export const OrderStatusScreen: React.FC = () => {
     const currentStatus = order!.status;
     const isAfterPending = currentStatus !== 'PENDING';
 
-    if (paymentMethod === 'cash' && isAfterPending) {
+    if (isAfterPending) {
       Alert.alert(
         'No se puede cancelar',
         'Los pedidos con pago en efectivo no pueden cancelarse despues de ser aceptados por el restaurante.',
@@ -94,9 +95,7 @@ export const OrderStatusScreen: React.FC = () => {
       return;
     }
 
-    const cardWarning = paymentMethod === 'card' && isAfterPending
-      ? '\n\nSe aplicara un cargo del 30% del costo del pedido (sin envio).'
-      : '';
+    const cardWarning = '';
 
     Alert.alert(
       'Cancelar pedido',
@@ -170,11 +169,7 @@ export const OrderStatusScreen: React.FC = () => {
   const showMap = order.delivery_type !== 'pickup' && isActive && (order.status === 'ACCEPTED' || order.status === 'ON_THE_WAY' || order.status === 'PICKING');
 
   // Cancel Button Logic
-  const canCancel = (() => {
-    if (isRejected || isCancelled || isDelivered) return false;
-    if (order.payment_method === 'cash' && order.status !== 'PENDING') return false;
-    return true;
-  })();
+  const canCancel = order.status === 'PENDING';
 
   if (showMap) {
     return (
@@ -352,6 +347,7 @@ export const OrderStatusScreen: React.FC = () => {
       </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <OrderTimeProposal orderId={orderId} />
         <View style={styles.statusArea}>
           {isRejected || isCancelled ? (
             <View style={styles.rejectedContainer}>

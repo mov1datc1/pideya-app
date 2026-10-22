@@ -26,13 +26,13 @@ export const fetchCommissionTiers = async (): Promise<CommissionTier[]> => {
   try {
     const { data, error } = await supabase
       .from('app_settings')
-      .select('commission_tiers')
-      .limit(1)
+      .select('value')
+      .eq('setting_key', 'commission_config')
       .maybeSingle();
 
     if (error) throw error;
 
-    const tiers = data?.commission_tiers as CommissionTier[] | null;
+    const tiers = data?.value?.commission_tiers as CommissionTier[] | null;
     if (tiers && Array.isArray(tiers) && tiers.length > 0) {
       // Cache for offline use
       await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(tiers));
