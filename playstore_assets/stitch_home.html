@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PideYa - Home</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Montserrat:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#ffffff",
+                        "secondary": "#5d5e61",
+                        "on-tertiary-fixed": "#2a1700",
+                        "outline-variant": "#bdc9c5",
+                        "on-surface-variant": "#3e4946",
+                        "secondary-fixed-dim": "#c6c6c9",
+                        "primary-fixed-dim": "#7ed6c3",
+                        "on-secondary-fixed": "#1a1c1e",
+                        "on-secondary-fixed-variant": "#454749",
+                        "secondary-container": "#e2e2e5",
+                        "surface-container-high": "#e6e8e9",
+                        "surface-container-lowest": "#ffffff",
+                        "outline": "#6e7976",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f2f4f5",
+                        "on-primary-container": "#f4fffa",
+                        "on-error": "#ffffff",
+                        "primary-container": "#218272",
+                        "tertiary-fixed": "#ffddb8",
+                        "error": "#ba1a1a",
+                        "on-background": "#191c1d",
+                        "on-tertiary-fixed-variant": "#653e00",
+                        "on-tertiary-container": "#fffbff",
+                        "inverse-on-surface": "#eff1f2",
+                        "surface-bright": "#f8fafb",
+                        "on-secondary": "#ffffff",
+                        "background": "#f8fafb",
+                        "on-primary-fixed": "#00201b",
+                        "inverse-primary": "#7ed6c3",
+                        "on-surface": "#191c1d",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed": "#e2e2e5",
+                        "surface-dim": "#d8dadb",
+                        "surface": "#f8fafb",
+                        "primary-fixed": "#9af3df",
+                        "on-primary-fixed-variant": "#005045",
+                        "surface-container": "#eceeef",
+                        "surface-variant": "#e1e3e4",
+                        "surface-container-highest": "#e1e3e4",
+                        "tertiary-container": "#a36700",
+                        "on-error-container": "#93000a",
+                        "on-secondary-container": "#636467",
+                        "tertiary-fixed-dim": "#ffb95f",
+                        "inverse-surface": "#2e3132",
+                        "surface-tint": "#006b5c",
+                        "tertiary": "#825100",
+                        "primary": "#006859"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "lg": "40px",
+                        "xl": "64px",
+                        "margin-mobile": "20px",
+                        "xs": "8px",
+                        "md": "24px",
+                        "sm": "16px",
+                        "margin-desktop": "auto",
+                        "base": "4px"
+                    },
+                    "fontFamily": {
+                        "headline-xl": ["Montserrat"],
+                        "headline-lg-mobile": ["Montserrat"],
+                        "label-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Montserrat"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Montserrat"]
+                    },
+                    "fontSize": {
+                        "headline-xl": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["26px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .glass-badge {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen pb-24">
+<!-- TopAppBar -->
+<header class="sticky docked full-width top-0 bg-surface shadow-sm z-50">
+<div class="flex justify-between items-center w-full px-margin-mobile py-xs z-50">
+<div class="flex items-center gap-2 max-w-[70%]">
+<span class="material-symbols-outlined text-primary text-xl" style="font-variation-settings: 'FILL' 1;">location_on</span>
+<div class="flex flex-col overflow-hidden">
+<span class="font-label-sm text-label-sm text-secondary truncate">Entregar en:</span>
+<span class="font-label-md text-label-md text-on-surface font-semibold truncate flex items-center gap-1">Casa 📍 Calle 12 #4-56 <span class="material-symbols-outlined text-sm">expand_more</span></span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="relative hover:bg-surface-container-low transition-colors rounded-full p-2 active:scale-95 duration-100">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+</div>
+</div>
+<!-- Search Bar -->
+<div class="px-margin-mobile pb-sm pt-xs">
+<div class="flex items-center gap-2 w-full">
+<div class="flex-1 relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-xl py-3 pl-10 pr-4 font-body-md text-body-md text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" placeholder="Buscar comida, supermercado..." type="text"/>
+</div>
+<button class="bg-surface-container-low border border-outline-variant rounded-xl p-3 hover:bg-surface-container transition-colors active:scale-95 flex-shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant">tune</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex flex-col gap-md pt-sm">
+<!-- Hero Banners -->
+<section class="pl-margin-mobile overflow-hidden">
+<div class="flex gap-4 overflow-x-auto hide-scrollbar snap-x snap-mandatory pr-margin-mobile pb-2">
+<!-- Banner 1 -->
+<div class="snap-start flex-none w-[85vw] md:w-[60vw] max-w-[400px] h-[160px] rounded-xl overflow-hidden relative shadow-sm" data-alt="Vibrant, high-resolution food photography banner featuring a juicy, stacked gourmet burger with melting cheese and fresh lettuce. The background is a dynamic, slightly blurred urban scene with warm, high-contrast lighting emphasizing the appetizing qualities of the food. Bold typography space available on the left. Bright teal accents. Corporate modern aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCcuVpsE2k7Ho8JXuCR67IHUbzSxVuKXh6bfg936jmzqYHDFXn1-ZLGd4BF6B9cvbgzYtqk4msKvntWlyfnruB1RXR-XF2XaP1ZSQaTi0H_gd_QWQVgrtNpOdUB8wFgWOTToGRLaEp9D_pS036gebglgJhfyul5NyShgrOSWQ8SowY5PLSy5tF7MqPvgD7gJlCf4lgr0fqgqjgBPClaLCknH0Ned3eOk3csSe9H3l8ss5lsryx2cSvfayfYai0-V1NlOZlC0suqQfg')">
+<div class="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent flex flex-col justify-center p-sm">
+<span class="bg-error text-on-error font-label-sm text-label-sm px-2 py-1 rounded-full w-max mb-2 font-bold uppercase tracking-wider">Flash Deal</span>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-white leading-tight mb-1 w-2/3">50% Off<br/>Burgers</h2>
+<span class="font-body-md text-body-md text-white/90">Code: BURGER50</span>
+</div>
+</div>
+<!-- Banner 2 -->
+<div class="snap-start flex-none w-[85vw] md:w-[60vw] max-w-[400px] h-[160px] rounded-xl overflow-hidden relative shadow-sm" data-alt="High-quality food photography banner showing a delivery bag with fresh groceries and artisan bread peeking out. Set against a clean, bright minimalist surface. The lighting is soft and natural, suggesting morning freshness. Ample negative space on the left for text. Teal and soft white tones dominate. Modern tactile aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAnZOA5mnTi24u8AGYxDqyPHUgZnD6rv_5ZFg5_cUVKw-HTeSQqqa9SkfLlqp_cGNy_0-ExKptgaICNb5EYDYl_tdjlPNEwbXDTX5iH0HCyNgQ1qLu52aC0cZPgsxsUzivkul5fGNGwPMAnSC2Y4_ZxYncFFOQREE6VifyQAThOQ3pvvuTmkkz3ERVJKCQKxwJm1CQU3Z-vp_Chb8GNroOMC8nlC_C0SJ9ppcMOQO3pDz22_IR9d3XPMVFGpKnPDYFYVfBymky8_f8')">
+<div class="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/70 to-transparent flex flex-col justify-center p-sm">
+<span class="bg-white text-primary font-label-sm text-label-sm px-2 py-1 rounded-full w-max mb-2 font-bold uppercase tracking-wider">New Users</span>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-white leading-tight mb-1 w-2/3">Free<br/>Delivery</h2>
+<span class="font-body-md text-body-md text-white/90">On first order</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Categories -->
+<section class="pl-margin-mobile overflow-hidden">
+<div class="flex gap-4 overflow-x-auto hide-scrollbar pb-2 pr-margin-mobile">
+<button class="flex flex-col items-center gap-2 min-w-[72px] active:scale-95 transition-transform">
+<div class="w-16 h-16 rounded-xl bg-orange-100 flex items-center justify-center text-3xl shadow-sm border border-orange-200/50"><img alt="Restaurantes" class="w-10 h-10 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtYc3rTQb2OSnYS1Yu1pTu4oIiuzoSnXp1DgCqGpK2dZnpX-irEHt7OAi1gaPriEv8dp3bJ99m0sAbB6mGbH1cnD7ANh28ycII7cDpb9K0sl6vt_Jza2mjUpptTzWM5Sz8Rwh2axwYlKkwlmfgp6hCyH6EvXtsrn40XnB2MEmFCdgASP05xHtqZzThXyLrKLuX0N9WEbv56HcIUhuFIii2aqDFz1M9uP8DqcOWMeKGckbbNmPh7sBI"/></div>
+<span class="font-label-md text-label-md text-on-surface">Restaurantes</span>
+</button>
+<button class="flex flex-col items-center gap-2 min-w-[72px] active:scale-95 transition-transform">
+<div class="w-16 h-16 rounded-xl bg-green-100 flex items-center justify-center text-3xl shadow-sm border border-green-200/50"><img alt="Mercado" class="w-10 h-10 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEWfewUEZjBaWjbvdDdduxicBqMcfe7BQ--R1wOTuCU6eXpNsoO92_HK2yXOG9REiH8quTSw8PjDTBbHHyA4CxucRcJkan9NN_FnwfbN2dQ1t3D8rJ6pG72JHN--oYOz4vgYtOpCBhusdiXA9Bnot4gLFLzEqS0jeP14RG3pQrybdg3icksiVptHEJxPDO29GEpd8tpImsomRxc8s9bzhJeVkjaOioTxezmGpiUQdd638qqlnDBIg8"/></div>
+<span class="font-label-md text-label-md text-on-surface">Mercado</span>
+</button>
+<button class="flex flex-col items-center gap-2 min-w-[72px] active:scale-95 transition-transform">
+<div class="w-16 h-16 rounded-xl bg-blue-100 flex items-center justify-center text-3xl shadow-sm border border-blue-200/50"><img alt="Farmacia" class="w-10 h-10 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxK0YUwFOpK0JKWqv5NBeo_Q_4aqzGeNSkzmoUYTPlR4AnBVKadSB0QuFyYDy74W4Ak9TvpG23Qwt-7sjIf9jgbKAXe_b6A4Gmg1nhanqqIgUU3tCzsLGDW21zmLppP1cJpAlTtu3hZYQ0W-NUU-_WdkVimkvhcGTUKFFNE1yGS1Reh1cCJY6uVN-48fiGz_y_lW_cTLPvoSsf2VZnHTu5UixwTFF-bsJdG22unWlZMxa_Lty1XZ7p"/></div>
+<span class="font-label-md text-label-md text-on-surface">Farmacia</span>
+</button>
+<button class="flex flex-col items-center gap-2 min-w-[72px] active:scale-95 transition-transform">
+<div class="w-16 h-16 rounded-xl bg-yellow-100 flex items-center justify-center text-3xl shadow-sm border border-yellow-200/50"><img alt="Express" class="w-10 h-10 object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjR7Bl4f6gT_elpJXZsERjtBdwxi5IvtS49riCCWQYpNOyz8mTLjmCorsmUGbrKppG01cabQsNcZPOTJILMDCJtB8kaQxmESnoG56qSvctbQnAe4dhTSYpx-FflgQBCZHLRzHYfFj6AX0kj8CznLbnOuPtMvlf8m_2sx57CNhyrsgFQQr_CrUCnqAiZG3_AfBTsYjYNXtwBSVlqFJLr_uWhIlKssDxrqVovnZlm9kNG6yoGDKxRbvg"/></div>
+<span class="font-label-md text-label-md text-on-surface">Express</span>
+</button>
+<button class="flex flex-col items-center gap-2 min-w-[72px] active:scale-95 transition-transform">
+<div class="w-16 h-16 rounded-xl bg-purple-100 flex items-center justify-center text-3xl shadow-sm border border-purple-200/50">🍾</div>
+<span class="font-label-md text-label-md text-on-surface">Licores</span>
+</button>
+<button class="flex flex-col items-center gap-2 min-w-[72px] active:scale-95 transition-transform">
+<div class="w-16 h-16 rounded-xl bg-red-100 flex items-center justify-center text-3xl shadow-sm border border-red-200/50">🐶</div>
+<span class="font-label-md text-label-md text-on-surface">Mascotas</span>
+</button>
+</div>
+</section>
+<!-- Featured Section -->
+<section class="px-margin-mobile flex flex-col gap-sm">
+<div class="flex justify-between items-end">
+<h2 class="font-headline-md text-headline-md text-on-surface">Restaurantes Destacados</h2>
+<button class="font-label-md text-label-md text-primary font-bold">Ver todos</button>
+</div>
+<div class="flex flex-col gap-4">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-surface-container active:scale-[0.98] transition-transform">
+<div class="relative h-40 w-full">
+<img class="w-full h-full object-cover" data-alt="High-quality, appetizing photo of a massive, perfectly grilled double cheeseburger from a fast-food chain. Accompanied by crispy golden fries in the background. The lighting is warm and directional, emphasizing the texture of the meat and melted cheese. Professional food photography style, high contrast, clean white background. Modern tactile aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnVvUWK19rxyy3WatQAoD46Prt_8UfNfD9Pvno4RPbI2PDAOrFOtZ4r53rqYEtFRO5VcWDTPh3Fy76IKb5Ssf8tt2VeDXZMzJklHmXld8dVX1c-Pm_S3egbYDZ2WZtqZKEMK0SiGXb69Fu6BzUChRODTXyN0NKB1b6HoZoKhxmA7RA3NVn9h8rc5mHSa0BB9vp6i5pceKaV43-kBN8-ns7Jv2PPTG_a-nk86nNdUKAILpyJZu37mgZm0vzY-PVnLGMqjpbqwcNkJw"/>
+<!-- Badges -->
+<div class="absolute top-2 right-2 glass-badge rounded-lg px-2 py-1 flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-yellow-500" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md text-on-surface font-bold">4.8</span>
+</div>
+<div class="absolute top-2 left-2 bg-white rounded-full p-1 shadow-sm h-10 w-10 flex items-center justify-center">
+<span class="font-bold text-lg leading-none">BK</span>
+</div>
+</div>
+<div class="p-sm flex flex-col gap-1">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-headline-md text-on-surface text-xl">Burger King</h3>
+</div>
+<p class="font-label-sm text-label-sm text-secondary">Burgers • Fast Food • American</p>
+<div class="flex items-center gap-4 mt-2">
+<div class="flex items-center gap-1 text-on-surface-variant bg-surface-container-low px-2 py-1 rounded-md">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-label-sm text-label-sm font-semibold">15-25 min</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant bg-surface-container-low px-2 py-1 rounded-md">
+<span class="material-symbols-outlined text-[16px]">two_wheeler</span>
+<span class="font-label-sm text-label-sm font-semibold">$0.99</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0px_4px_20px_rgba(0,0,0,0.05)] border border-surface-container active:scale-[0.98] transition-transform">
+<div class="relative h-40 w-full">
+<img class="w-full h-full object-cover" data-alt="Delicious, mouth-watering close-up photography of a freshly baked pepperoni pizza with a thick, golden crust and stringy mozzarella cheese being pulled away. The setting is modern and slightly rustic, with dramatic overhead lighting highlighting the glossy pepperoni. Professional food photography style, vibrant warm colors. Modern tactile aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOLqmbWRoHqd27O_tAG_cPYPQPwrKMOdbW1Q5UMaMcxUqX3GhrthKbVi1kpA9btH7HChFWW3sn0Sr8y7vhYPxcOIYYX4XI_3_030Y0EL-lH5fCiGD_L-LbhDeQN3eSQ4BGHv6hFOfytd738MLHSO3_ClXeFcQcqIqnnnBqslQJMZ80ggCEXTxxHbnVUQxVHJ2fa4Bb9IOe48fzwljDDP72cYYjkyTnmkc4oGG1n7AyXCGUymf3kvNl_zCKFTk0xxqfbHaoUQ4dCg0"/>
+<!-- Badges -->
+<div class="absolute top-2 right-2 glass-badge rounded-lg px-2 py-1 flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px] text-yellow-500" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md text-on-surface font-bold">4.6</span>
+</div>
+<div class="absolute top-2 left-2 bg-white rounded-full p-1 shadow-sm h-10 w-10 flex items-center justify-center">
+<span class="font-bold text-lg text-red-600 leading-none">PJ</span>
+</div>
+</div>
+<div class="p-sm flex flex-col gap-1">
+<div class="flex justify-between items-start">
+<h3 class="font-headline-md text-headline-md text-on-surface text-xl">Papa John's</h3>
+</div>
+<p class="font-label-sm text-label-sm text-secondary">Pizza • Italian • Wings</p>
+<div class="flex items-center gap-4 mt-2">
+<div class="flex items-center gap-1 text-on-surface-variant bg-surface-container-low px-2 py-1 rounded-md">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-label-sm text-label-sm font-semibold">25-35 min</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant bg-surface-container-low px-2 py-1 rounded-md">
+<span class="material-symbols-outlined text-[16px]">two_wheeler</span>
+<span class="font-label-sm text-label-sm font-semibold">Gratis</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 pb-4 pt-2 bg-surface-container-lowest shadow-[0px_-12px_30px_rgba(0,0,0,0.1)] rounded-t-xl md:hidden">
+<button class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 active:scale-90 duration-200">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-label-sm mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-secondary-container px-4 py-1 hover:bg-secondary-container/50 transition-all rounded-full active:scale-90 duration-200">
+<span class="material-symbols-outlined">search</span>
+<span class="font-label-sm text-label-sm mt-1">Search</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-secondary-container px-4 py-1 hover:bg-secondary-container/50 transition-all rounded-full active:scale-90 duration-200">
+<span class="material-symbols-outlined">receipt_long</span>
+<span class="font-label-sm text-label-sm mt-1">Orders</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-secondary-container px-4 py-1 hover:bg-secondary-container/50 transition-all rounded-full active:scale-90 duration-200">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm mt-1">Profile</span>
+</button>
+</nav>
+</body></html>

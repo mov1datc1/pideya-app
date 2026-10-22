@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PideYa - Supermercado Central</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Montserrat:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-primary": "#7ed6c3",
+                        "surface-tint": "#006b5c",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container": "#eceeef",
+                        "secondary-fixed-dim": "#c6c6c9",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f8fafb",
+                        "secondary-container": "#e2e2e5",
+                        "primary-container": "#218272",
+                        "secondary-fixed": "#e2e2e5",
+                        "secondary": "#5d5e61",
+                        "on-tertiary-fixed": "#2a1700",
+                        "surface-dim": "#d8dadb",
+                        "outline": "#6e7976",
+                        "inverse-on-surface": "#eff1f2",
+                        "on-primary-container": "#f4fffa",
+                        "surface-container-highest": "#e1e3e4",
+                        "on-secondary-container": "#636467",
+                        "surface-container-high": "#e6e8e9",
+                        "tertiary-fixed": "#ffddb8",
+                        "on-surface-variant": "#3e4946",
+                        "on-secondary-fixed": "#1a1c1e",
+                        "on-tertiary": "#ffffff",
+                        "background": "#f8fafb",
+                        "primary": "#006859",
+                        "on-tertiary-fixed-variant": "#653e00",
+                        "primary-fixed-dim": "#7ed6c3",
+                        "on-primary-fixed": "#00201b",
+                        "surface-variant": "#e1e3e4",
+                        "on-surface": "#191c1d",
+                        "tertiary-container": "#a36700",
+                        "primary-fixed": "#9af3df",
+                        "on-tertiary-container": "#fffbff",
+                        "tertiary": "#825100",
+                        "outline-variant": "#bdc9c5",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb95f",
+                        "error-container": "#ffdad6",
+                        "inverse-surface": "#2e3132",
+                        "surface": "#f8fafb",
+                        "on-error-container": "#93000a",
+                        "on-background": "#191c1d",
+                        "surface-container-low": "#f2f4f5",
+                        "on-secondary-fixed-variant": "#454749",
+                        "on-primary-fixed-variant": "#005045"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "64px",
+                        "xs": "8px",
+                        "lg": "40px",
+                        "gutter": "16px",
+                        "margin-mobile": "20px",
+                        "base": "4px",
+                        "margin-desktop": "auto",
+                        "sm": "16px",
+                        "md": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-xl": ["Montserrat"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Montserrat"],
+                        "headline-md": ["Montserrat"],
+                        "headline-lg": ["Montserrat"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-xl": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["26px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen pb-32">
+<!-- Top App Bar -->
+<header class="w-full top-0 sticky z-40 bg-surface dark:bg-surface-dim shadow-[0px_4px_20px_rgba(0,0,0,0.05)] flex justify-between items-center px-margin-mobile py-sm">
+<div class="flex items-center gap-4">
+<button class="active:scale-95 duration-150 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors p-2 rounded-full text-on-surface-variant dark:text-outline-variant">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">PideYa</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="active:scale-95 duration-150 ease-in-out hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors p-2 rounded-full text-on-surface-variant dark:text-outline-variant">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="font-label-md text-label-md text-primary dark:text-primary-fixed-dim px-3 py-1.5 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors active:scale-95 duration-150 ease-in-out">
+                Guardar Lista
+            </button>
+</div>
+</header>
+<main class="max-w-[1280px] mx-auto w-full md:px-margin-desktop md:mt-8">
+<!-- Header Banner Section -->
+<section class="px-margin-mobile pt-sm pb-md">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg mb-4">Supermercado Central 🛒</h2>
+<div class="flex flex-wrap gap-2 mb-6">
+<span class="inline-flex items-center gap-1 px-3 py-1 bg-surface-container-highest text-on-surface rounded-full font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px] text-tertiary-fixed-dim" style="font-variation-settings: 'FILL' 1;">star</span>
+                    4.8 (350+ reseñas)
+                </span>
+<span class="inline-flex items-center gap-1 px-3 py-1 bg-primary-container text-on-primary-container rounded-full font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">bolt</span>
+                    Picking Asistido
+                </span>
+<span class="inline-flex items-center px-3 py-1 bg-surface-container-highest text-on-surface rounded-full font-label-sm text-label-sm">
+                    30-40 min ETA
+                </span>
+<span class="inline-flex items-center px-3 py-1 bg-surface-container-highest text-on-surface rounded-full font-label-sm text-label-sm">
+                    $0.00 Envío
+                </span>
+</div>
+<div class="bg-surface-container p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+<div>
+<h3 class="font-label-md text-label-md text-on-surface mb-1">Preferencia de Sustituto</h3>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Llamarme si falta un item | Sustituto similar</p>
+</div>
+<button class="px-4 py-2 bg-inverse-surface text-inverse-on-surface rounded-full font-label-md text-label-md hover:opacity-90 transition-opacity">
+                    Editar
+                </button>
+</div>
+</section>
+<!-- Sticky Navigation Categories -->
+<nav class="sticky top-[72px] z-30 bg-background/90 backdrop-blur-md py-3 px-margin-mobile border-b border-surface-container-high no-scrollbar overflow-x-auto whitespace-nowrap mb-6 shadow-sm">
+<div class="flex gap-2">
+<button class="px-5 py-2 bg-primary text-on-primary rounded-full font-label-md text-label-md shadow-sm">Lácteos 🥛</button>
+<button class="px-5 py-2 bg-surface-container text-on-surface rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors">Frutas &amp; Verduras 🍎</button>
+<button class="px-5 py-2 bg-surface-container text-on-surface rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors">Despensa 🍞</button>
+<button class="px-5 py-2 bg-surface-container text-on-surface rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors">Limpieza 🧹</button>
+</div>
+</nav>
+<!-- Product List -->
+<section class="px-margin-mobile grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+<!-- Item 1 -->
+<article class="bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(0,0,0,0.05)] p-4 flex gap-4 items-center">
+<div class="w-24 h-24 rounded-lg bg-surface-container-high flex-shrink-0 relative overflow-hidden">
+<img class="object-cover w-full h-full" data-alt="A clean, highly detailed macro photograph of a 1-liter carton of whole milk on a pristine white background. Studio lighting, sharp focus, corporate modern retail aesthetic. The lighting is bright and even, highlighting the fresh, clean packaging. The image emphasizes the high quality of the product, fitting a premium supermarket app. Agave teal accents in the background subtle reflections." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnFAKcXWUpUZz_37tNU6sLD_RjAnMo2MKZ7Jjo15HHLmprNIHSWTr2LHVMZxcfCWGEOny4d83jC9LudPYais9uqZhL5oInMLuRrEJfHQF_JthUz5Qrp3ZEEBo_By_he1Mpf2hNSJNiyYChVqkrlxTUOCH3nAfXkd0TJK1r_mleJamJIIoKLJHyBBfH4nRH9rPwoOhnxxmM5Ac7lGkdlppZ-lO-R7qRkf8VKYdcVKFpJK1-AjIrS94B9zuFBgEV2z04FZflJ515euc"/>
+</div>
+<div class="flex-grow">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface mb-1">Leche Entera 1L</h4>
+<p class="font-label-sm text-label-sm text-primary mb-2">En Stock 🟢</p>
+<p class="font-body-lg text-body-lg text-on-surface font-bold">$2.20</p>
+</div>
+<div class="flex flex-col items-center bg-surface-container-lowest border border-surface-container-high rounded-full overflow-hidden shadow-sm">
+<button class="p-2 hover:bg-surface-container-high text-primary"><span class="material-symbols-outlined text-[20px]">remove</span></button>
+<span class="font-label-md text-label-md w-8 text-center py-1 font-bold">2</span>
+<button class="p-2 hover:bg-surface-container-high text-primary"><span class="material-symbols-outlined text-[20px]">add</span></button>
+</div>
+</article>
+<!-- Item 2 -->
+<article class="bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(0,0,0,0.05)] p-4 flex gap-4 items-center">
+<div class="w-24 h-24 rounded-lg bg-surface-container-high flex-shrink-0 relative overflow-hidden">
+<img class="object-cover w-full h-full" data-alt="A vivid, appetizing top-down photograph of perfectly ripe Hass avocados cut in half, revealing bright green flesh and a dark pit. Resting on a clean, light surface. The lighting is soft but vibrant, emphasizing freshness and quality. Corporate modern food photography style, clean white background, high contrast, appealing to a fast-paced urban demographic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuClLBfxujNOtX4vZhdrsUbgRd3s3W5NnE17ev_am9EkB3XHe1bOgLnJ7ut6c3xc6xNFD49ZtnM1CLtqkWDUw-siwAkGAZzfJbfgH1_CytYMwTPuhufXp_fewZHCgvpx2n6bkknutP39Uv4vhvnlXtG1VM7nyA36antxH44YbUidtMWtgQYbDlNbW0To80V3sNubMZm10kjpetHlnFScoI61ucj-qQ-8r_AlAHwZRxe3dg3UKQaK-DDt1HBacWF6Vh4enfKERNGyx5o"/>
+</div>
+<div class="flex-grow">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface mb-1">Aguacate Hass 1kg</h4>
+<p class="font-label-sm text-label-sm text-on-surface-variant mb-2">Especificación: Maduros para hoy</p>
+<p class="font-body-lg text-body-lg text-on-surface font-bold">$4.50</p>
+</div>
+<div class="flex flex-col items-center bg-surface-container-lowest border border-surface-container-high rounded-full overflow-hidden shadow-sm">
+<button class="p-2 hover:bg-surface-container-high text-primary"><span class="material-symbols-outlined text-[20px]">remove</span></button>
+<span class="font-label-md text-label-md w-8 text-center py-1 font-bold">1</span>
+<button class="p-2 hover:bg-surface-container-high text-primary"><span class="material-symbols-outlined text-[20px]">add</span></button>
+</div>
+</article>
+<!-- Item 3 -->
+<article class="bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(0,0,0,0.05)] p-4 flex gap-4 items-center opacity-75">
+<div class="w-24 h-24 rounded-lg bg-surface-container-high flex-shrink-0 relative overflow-hidden">
+<img class="object-cover w-full h-full grayscale-[20%]" data-alt="A sharp, well-lit studio product shot of a 2-liter bottle of blue liquid laundry detergent on a pristine white background. Corporate modern aesthetic, bright lighting, soft shadows. The packaging is clean and clear, conveying a sense of efficiency and cleanliness suitable for a premium retail app. High-contrast interactive elements feel present." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_1xHwvuC-WIp9_KXeXQR1Y0OUn1V-6Qw5QQ93UXPMRXcrNN--m_RAw0T1Ph0hIkuWlkvI799NjxOXaZ11wfEzBwOn35iE-XrUA4ujTVa5GSRtL_OfVkDOblehnuRcw2a3evfapQBIcAISS83KYLlQeoGqUxdYMQynky3kWKzqRnM8D4nNzsP9yNsRih8s2YDD1Gzk353OSFjNQvAmqypBZbnQoYoGgJBmc1c3lrAWc4d7ptxXYTYg_Baozbe6Ng20XWWZc_Vo-3Y"/>
+</div>
+<div class="flex-grow">
+<h4 class="font-body-md text-body-md font-semibold text-on-surface mb-1">Detergente Líquido 2L</h4>
+<p class="font-body-lg text-body-lg text-on-surface font-bold mt-3">$8.90</p>
+</div>
+<div class="flex flex-col items-center bg-surface-container-lowest border border-surface-container-high rounded-full overflow-hidden shadow-sm">
+<button class="p-2 hover:bg-surface-container-high text-outline" disabled=""><span class="material-symbols-outlined text-[20px]">remove</span></button>
+<span class="font-label-md text-label-md w-8 text-center py-1 font-bold text-on-surface-variant">0</span>
+<button class="p-2 hover:bg-surface-container-high text-primary"><span class="material-symbols-outlined text-[20px]">add</span></button>
+</div>
+</article>
+</section>
+</main>
+<!-- Bottom Floating Cart Bar -->
+<div class="fixed bottom-4 left-0 right-0 px-margin-mobile z-50 flex justify-center pointer-events-none md:hidden">
+<div class="w-full max-w-[400px] bg-primary text-on-primary rounded-xl shadow-[0px_12px_30px_rgba(0,0,0,0.1)] p-4 flex items-center justify-between pointer-events-auto active:scale-95 transition-transform duration-200 cursor-pointer">
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-semibold">Ver Carrito (5 productos)</span>
+<span class="font-label-sm text-label-sm text-on-primary/80">Picking Activo</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="font-body-lg text-body-lg font-bold">$34.50</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Desktop Bottom Nav (Hidden on Mobile, shown based on shared component logic if needed, but per instructions, transactional/task focused implies suppressing standard nav, using cart bar instead) -->
+<!-- Render standard BottomNavBar just to fulfill requirement if needed, but context implies cart is primary. We will hide it to focus on cart as requested. Actually the instructions say "The Destination Rule: You are only permitted to render the BottomNavBar... if top-level destination... Automatic Suppression... if task-focused". This is a specific catalog screen, likely task-focused. I will suppress standard BottomNavBar and only show the requested Floating Cart Bar. -->
+</body></html>

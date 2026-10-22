@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
 import * as authService from '../services/auth';
+import { parseAppError } from '../utils/errorHandler';
 
 interface AuthState {
   user: User | null;
@@ -48,7 +49,7 @@ export const useAuth = () => {
     try {
       await authService.signIn(email, password);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al iniciar sesion';
+      const message = parseAppError(err, 'Error al iniciar sesión');
       setState((s) => ({ ...s, error: message, loading: false }));
       throw err;
     }
@@ -60,7 +61,7 @@ export const useAuth = () => {
       try {
         await authService.signUp(email, password, fullName, phone, city);
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Error al registrarse';
+        const message = parseAppError(err, 'Error al registrarse');
         setState((s) => ({ ...s, error: message, loading: false }));
         throw err;
       }
@@ -74,7 +75,7 @@ export const useAuth = () => {
     try {
       await authService.sendEmailOtp(email);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al enviar codigo';
+      const message = parseAppError(err, 'Error al enviar código');
       setState((s) => ({ ...s, error: message, loading: false }));
       throw err;
     } finally {
@@ -92,9 +93,9 @@ export const useAuth = () => {
       if (raw.toLowerCase().includes('expired')) {
         message = 'El codigo ya expiro. Toca "Reenviar codigo" para recibir uno nuevo.';
       } else if (raw.toLowerCase().includes('invalid') || raw.toLowerCase().includes('token')) {
-        message = 'El codigo no es valido. Verifica los 6 digitos que recibiste por email.';
-      } else if (raw) {
-        message = raw;
+        message = 'El código no es válido. Verifica los 6 dígitos que recibiste por email.';
+      } else {
+        message = parseAppError(err, 'Código incorrecto o expirado');
       }
       setState((s) => ({ ...s, error: message, loading: false }));
       throw err;
@@ -114,8 +115,8 @@ export const useAuth = () => {
         // User cancelled — don't show error
         setState((s) => ({ ...s, loading: false }));
         return;
-      } else if (raw) {
-        message = raw;
+      } else {
+        message = parseAppError(err, 'Error al iniciar sesión con Google');
       }
       setState((s) => ({ ...s, error: message, loading: false }));
       throw err;
@@ -132,7 +133,7 @@ export const useAuth = () => {
       const { data: { user } } = await supabase.auth.getUser();
       setState((s) => ({ ...s, user, loading: false }));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al actualizar perfil';
+      const message = parseAppError(err, 'Error al actualizar perfil');
       setState((s) => ({ ...s, error: message, loading: false }));
       throw err;
     }
@@ -143,7 +144,7 @@ export const useAuth = () => {
     try {
       await authService.signOut();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al cerrar sesion';
+      const message = parseAppError(err, 'Error al cerrar sesión');
       setState((s) => ({ ...s, error: message, loading: false }));
     }
   }, []);
