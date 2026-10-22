@@ -1,3 +1,5 @@
+> Estado al 22 de octubre de 2026: por tu indicación actual, el workflow se ejecuta manualmente y solo compila; no escucha pushes ni envía a Google Play. Para activar la automatización después de configurar las credenciales, completa el paso 8. El AAB 1.3.0 / 31 se entregó para carga manual.
+
 # Manual PideYa: Antigravity → Expo EAS → Google Play
 
 Revisado el 21 de octubre de 2026. Alcance: **app cliente, AAB y pruebas internas**. El formato correcto es `.aab` (Android App Bundle).
@@ -13,7 +15,7 @@ Revisado el 21 de octubre de 2026. Alcance: **app cliente, AAB y pruebas interna
 | Repositorio | `https://github.com/mov1datc1/pideya-app` |
 | Compilación | Perfil `production`, AAB, incremento remoto de versión |
 | Envío | Perfil `internal`, canal `internal`, estado `completed`, preparado localmente |
-| Automatización GitHub | Archivo local `.eas/workflows/android-play.yml`, rama `develop` |
+| Automatización GitHub | `.eas/workflows/android-play.yml` manual; disparador y submit desactivados |
 | Permisos Google Play e integración GitHub en Expo | No verificados en las consolas remotas |
 | Primera entrega con este flujo | Pendiente; este manual no ejecutó builds ni submissions |
 
@@ -135,8 +137,29 @@ El segundo comando programa el envío cuando termine satisfactoriamente la compi
 1. En el proyecto Expo, abre **Project settings → GitHub** (el nombre puede aparecer como GitHub settings).
 2. Conecta GitHub e instala/autoriza la aplicación de Expo para el repositorio `mov1datc1/pideya-app`.
 3. Selecciona ese repositorio. La raíz de la app es la raíz del repositorio; `pideya-driver` es otra aplicación.
-4. Conserva `.eas/workflows/android-play.yml`. Ya escucha pushes a `develop` y encadena validación → build → submit interno. No configures además otro disparador de compilación para el mismo push.
+4. Tras configurar y probar Submit, edita `.eas/workflows/android-play.yml` para añadir el disparador y el trabajo de envío mostrados abajo. Actualmente contiene solo validación y compilación manual. No configures otro disparador para el mismo push.
 5. Publica el workflow y `eas.json`, junto con los cambios revisados que quieras probar, mediante commit y push a `develop`.
+
+Añade al nivel superior del archivo (fuera de `jobs`):
+
+```yaml
+on:
+  push:
+    branches: [develop]
+```
+
+Añade dentro de `jobs`, al mismo nivel que `build_android`:
+
+```yaml
+  submit_android:
+    name: Enviar a pruebas internas de Google Play
+    needs: [build_android]
+    type: submit
+    params:
+      profile: internal
+      build_id: ${{ needs.build_android.outputs.build_id }}
+```
+
 6. Abre **Workflows** en Expo. Comprueba la ejecución asociada al commit enviado.
 
 Un commit local no dispara nada. El push sí lo hace, una vez conectada la integración. La ejecución en EAS no depende de mantener abierto Antigravity ni el Mac. [Conectar GitHub y EAS Workflows](https://docs.expo.dev/eas/workflows/get-started/).
