@@ -19,10 +19,13 @@ interface Props {
   driverName?: string | null;
   driverUpdatedAt?: string | null;
   status: string;
+  topInset?: number;
+  bottomInset?: number;
+  showFreshness?: boolean;
   onRouteInfo?: (eta: string | null, distance: string | null) => void;
 }
 
-export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng, restaurantName, clientLat, clientLng, driverLat, driverLng, driverName, driverUpdatedAt, status, onRouteInfo }) => {
+export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng, restaurantName, clientLat, clientLng, driverLat, driverLng, driverName, driverUpdatedAt, status, onRouteInfo, topInset = 110, bottomInset = 340, showFreshness = true }) => {
   const mapRef = useRef<MapView>(null);
   const driverRef = useRef<React.ElementRef<typeof Marker>>(null);
   const [ready, setReady] = useState(false);
@@ -76,12 +79,12 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
     if (points.length === 1) {
       mapRef.current?.animateToRegion({ ...points[0], latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
     } else {
-      mapRef.current?.fitToCoordinates(points, { edgePadding: { top: 110, right: 55, bottom: 340, left: 55 }, animated: true });
+      mapRef.current?.fitToCoordinates(points, { edgePadding: { top: topInset, right: 45, bottom: 40, left: 45 }, animated: true });
     }
-  }, [ready, points]);
+  }, [ready, points, topInset, bottomInset]);
   useEffect(() => {
     // Fit initially and when a driver first appears. Let the customer pan freely afterwards.
-    const key = `${!!restaurant}:${!!client}:${!!driver}`;
+    const key = `${!!restaurant}:${!!client}:${!!driver}:${Math.round(topInset)}:${Math.round(bottomInset)}`;
     if (!ready || !points.length || fitted.current === key) return;
     fitted.current = key;
     recenter();
@@ -121,12 +124,15 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
   if (!points.length) return <View style={styles.empty}><Ionicons name="location-outline" size={32} color={colors.agave} /><Text style={styles.caption}>Esperando la ubicación del pedido</Text></View>;
 
   return <View style={styles.container}>
-    <MapView ref={mapRef} style={StyleSheet.absoluteFillObject}
+    <MapView ref={mapRef} style={[StyleSheet.absoluteFillObject, { bottom: Math.max(0, bottomInset - 16) }]}
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
       initialRegion={{ ...points[0], latitudeDelta: 0.025, longitudeDelta: 0.025 }}
       onMapReady={() => setReady(true)} customMapStyle={PIDEYA_MAP_STYLE}
       pitchEnabled={false} rotateEnabled={false} showsBuildings showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false}>
-      {routeCoords.length > 1 && <Polyline coordinates={routeCoords} strokeWidth={5} strokeColor={colors.agave} />}
+      {routeCoords.length > 1 && <>
+        <Polyline coordinates={routeCoords} strokeWidth={9} strokeColor={colors.white} zIndex={1} />
+        <Polyline coordinates={routeCoords} strokeWidth={5} strokeColor={colors.agave} zIndex={2} />
+      </>}
       {restaurant && <Marker coordinate={restaurant} title={restaurantName || 'Establecimiento'} description="Origen de tu pedido" tracksViewChanges={false}>
         <View style={[styles.pin, styles.storePin]}><Ionicons name="storefront" size={22} color={colors.white} /></View>
       </Marker>}
@@ -136,20 +142,20 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
       {driver && <Marker ref={driverRef} coordinate={Platform.OS === 'android' ? initialDriver.current! : driver}
         title={driverName || 'Tu repartidor'} description="Última ubicación recibida" anchor={{ x: 0.5, y: 0.5 }}
         tracksViewChanges={!driverImageLoaded} zIndex={3}>
-        <View style={styles.driverPin}><Image source={require('../../assets/scooter-3d.png')} style={styles.scooter} fadeDuration={0} onLoad={() => setDriverImageLoaded(true)} /></View>
+        <View style={styles.driverPin}><Image source={require('../../assets/scooter-tracking.png')} style={styles.scooter} fadeDuration={0} onLoad={() => setDriverImageLoaded(true)} /></View>
       </Marker>}
     </MapView>
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Centrar mapa en mi pedido" style={styles.recenter} onPress={recenter}>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Centrar mapa en mi pedido" style={[styles.recenter, { bottom: bottomInset + 56 }]} onPress={recenter}>
       <Ionicons name="locate" size={24} color={colors.agave} />
     </TouchableOpacity>
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel={tilted ? 'Ver mapa plano' : 'Ver mapa inclinado'} accessibilityState={{ selected: tilted }} style={styles.perspective} onPress={togglePerspective}>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={tilted ? 'Ver mapa plano' : 'Ver mapa inclinado'} accessibilityState={{ selected: tilted }} style={[styles.perspective, { bottom: bottomInset }]} onPress={togglePerspective}>
       <Text style={styles.perspectiveLabel}>{tilted ? '2D' : '3D'}</Text>
     </TouchableOpacity>
-    <View pointerEvents="none" style={styles.routeNotice}>
-      <Text style={styles.caption}>{driver ? freshness.label : status === 'ON_THE_WAY' ? 'Esperando la ubicación del repartidor' : 'Preparando tu pedido · negocio y destino'}</Text>
+    {(showFreshness || (driver && staleDriver) || routeUnavailable) && <View pointerEvents="none" style={[styles.routeNotice, { top: topInset }]}>
+      {showFreshness && <Text style={styles.caption}>{driver ? freshness.label : status === 'ON_THE_WAY' ? 'Esperando la ubicación del repartidor' : 'Preparando tu pedido · negocio y destino'}</Text>}
       {driver && staleDriver && <Text style={styles.caption}>Último punto recibido · esperando actualización</Text>}
-      {routeUnavailable && !staleDriver && <Text style={styles.caption}>Ruta no disponible · mostrando ubicaciones</Text>}
-    </View>
+      {routeUnavailable && (!driver || !staleDriver) && <Text style={styles.caption}>{!driver && status === 'ON_THE_WAY' ? 'Esperando la ubicación del repartidor' : 'Ruta no disponible · mostrando ubicaciones'}</Text>}
+    </View>}
   </View>;
 };
 
@@ -157,11 +163,11 @@ const styles = StyleSheet.create({
   container: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.snow },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   pin: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.agave, borderWidth: 3, borderColor: colors.white, alignItems: 'center', justifyContent: 'center' },
-  storePin: { backgroundColor: colors.tierra },
-  driverPin: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors['agave-light'], borderColor: colors.agave, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  scooter: { width: 68, height: 68, resizeMode: 'contain' },
-  recenter: { position: 'absolute', top: 110, right: spacing.lg, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  perspective: { position: 'absolute', top: 168, right: spacing.lg, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  storePin: { backgroundColor: colors.agave },
+  driverPin: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center' },
+  scooter: { width: 58, height: 58, resizeMode: 'contain' },
+  recenter: { position: 'absolute', right: spacing.lg, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  perspective: { position: 'absolute', right: spacing.lg, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', elevation: 3 },
   perspectiveLabel: { fontFamily: fonts.outfit.medium, fontSize: 14, color: colors.agave },
   routeNotice: { position: 'absolute', top: 110, left: spacing.lg, right: 80, backgroundColor: colors.white, borderRadius: 12, padding: spacing.sm },
   caption: { fontFamily: fonts.outfit.medium, color: colors['ink-secondary'], fontSize: 12, textAlign: 'center' },

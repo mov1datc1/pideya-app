@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -18,7 +17,7 @@ import { getOrderById, subscribeToOrderStatus, cancelOrder } from '../../service
 import { subscribeToOrderTracking } from '../../services/tracking';
 import { subscribeToPickingItems, confirmPickingSummary } from '../../services/picking';
 import { notifyOrderStatusChange } from '../../hooks/useNotifications';
-import { OrderTrackingMap } from '../../components/OrderTrackingMap';
+import { DeliveryTrackingView } from '../../components/DeliveryTrackingView';
 import { colors, textStyles, spacing, radius, fonts } from '../../theme';
 import type { RootStackParamList } from '../../types/navigation';
 import type { Order, OrderStatus, OrderPickingItem } from '../../types/database';
@@ -26,7 +25,6 @@ import type { Order, OrderStatus, OrderPickingItem } from '../../types/database'
 type RouteType = RouteProp<RootStackParamList, 'OrderStatus'>;
 type NavType = NativeStackNavigationProp<RootStackParamList>;
 
-const { height: SCREEN_H } = Dimensions.get('window');
 
 const STATUS_STEPS: { status: OrderStatus; label: string; icon: string }[] = [
   { status: 'PENDING', label: 'Pedido enviado', icon: 'checkmark-circle' },
@@ -53,11 +51,7 @@ export const OrderStatusScreen: React.FC = () => {
   const [cancelling, setCancelling] = useState(false);
   const [confirmingPicking, setConfirmingPicking] = useState(false);
   const [pickingItems, setPickingItems] = useState<OrderPickingItem[]>([]);
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<{ eta: string | null; distance: string | null }>({
-    eta: null,
-    distance: null,
-  });
+
 
   useEffect(() => {
     getOrderById(orderId)
@@ -172,133 +166,8 @@ export const OrderStatusScreen: React.FC = () => {
   const canCancel = order.status === 'PENDING';
 
   if (showMap) {
-    return (
-      <View style={styles.container}>
-        {/* Full Screen Map */}
-        <OrderTrackingMap
-          restaurantLat={(order as any).restaurants?.lat ?? null}
-          restaurantLng={(order as any).restaurants?.lng ?? null}
-          restaurantName={(order as any).restaurants?.name}
-          clientLat={order.client_lat || 0}
-          clientLng={order.client_lng || 0}
-          driverLat={order.driver_last_lat ?? null}
-          driverLng={order.driver_last_lng ?? null}
-          driverName={order.delivery_driver_name}
-          driverUpdatedAt={order.driver_location_updated_at}
-          status={order.status}
-          onRouteInfo={(eta, distance) => setRouteInfo({ eta, distance })}
-        />
-
-        {/* Floating Header */}
-        <View style={[styles.floatingHeader, { top: insets.top + spacing.sm }]}>
-          <TouchableOpacity style={styles.floatingBackBtn} onPress={() => navigation.navigate('Main')}>
-            <Ionicons name="close" size={24} color={colors.ink} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Floating ETA Pill (If Available) */}
-        {routeInfo.eta && (
-          <View style={[styles.floatingEtaPill, { top: insets.top + spacing.sm }]}>
-            <Ionicons name="time" size={16} color={colors.agave} />
-            <Text style={styles.etaValue}>{routeInfo.eta}</Text>
-            {routeInfo.distance && (
-              <>
-                <View style={styles.etaDivider} />
-                <Text style={styles.etaDistance}>{routeInfo.distance}</Text>
-              </>
-            )}
-          </View>
-        )}
-
-        {/* Scrollable Bottom Sheet */}
-        <ScrollView
-          style={StyleSheet.absoluteFillObject}
-          contentContainerStyle={{
-            paddingTop: isCollapsed ? SCREEN_H - (insets.bottom + 140) : SCREEN_H * 0.42,
-          }}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
-          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + spacing.xl }]}>
-            {/* Interactive Sheet Handle & Minimizer Toggle */}
-            <TouchableOpacity
-              style={styles.sheetHandleArea}
-              onPress={() => setIsCollapsed(!isCollapsed)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.sheetHandle} />
-              <View style={styles.handleToggleRow}>
-                <Ionicons
-                  name={isCollapsed ? 'chevron-up-circle' : 'chevron-down-circle'}
-                  size={18}
-                  color={colors.agave}
-                />
-                <Text style={styles.handleToggleText}>
-                  {isCollapsed ? 'Ver detalle del pedido 📋' : 'Minimizar para ver mapa completo 🗺️'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Status Header */}
-            <View style={styles.sheetHeader}>
-              <View style={styles.statusCircle}>
-                <Ionicons
-                  name={steps[currentIdx]?.icon as keyof typeof Ionicons.glyphMap || 'time'}
-                  size={28}
-                  color={colors.agave}
-                />
-              </View>
-              <View style={styles.sheetTitleCol}>
-                <Text style={styles.sheetStatusTitle}>
-                  {steps[currentIdx]?.label || order.status}
-                </Text>
-                <Text style={styles.sheetOrderRef}>
-                  Pedido {order.reference_code}
-                </Text>
-              </View>
-            </View>
-
-            {/* Driver Card */}
-            {order.delivery_driver_name && (
-              <View style={styles.driverCard}>
-                <View style={styles.driverAvatar}>
-                  <Ionicons name="person" size={24} color={colors.white} />
-                </View>
-                <View style={styles.driverInfo}>
-                  <Text style={styles.driverName}>{order.delivery_driver_name}</Text>
-                  <Text style={styles.driverLabel}>Tu repartidor</Text>
-                </View>
-                {order.delivery_driver_phone && (
-                  <TouchableOpacity style={styles.driverCallBtn}>
-                    <Ionicons name="call" size={20} color={colors.agave} />
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-
-            {/* Stepper */}
-            <View style={styles.stepsContainer}>
-              {steps.map((step, idx) => {
-                const isDone = idx <= currentIdx;
-                const isCurrent = idx === currentIdx;
-                return (
-                  <View key={step.status} style={styles.stepRow}>
-                    <View style={styles.stepIndicatorCol}>
-                      <View style={[styles.stepDot, isDone && styles.stepDotDone, isCurrent && styles.stepDotCurrent]}>
-                        {isDone && <Ionicons name="checkmark" size={12} color={colors.white} />}
-                      </View>
-                      {idx < steps.length - 1 && (
-                        <View style={[styles.stepLine, isDone && styles.stepLineDone]} />
-                      )}
-                    </View>
-                    <Text style={[styles.stepLabel, isDone && styles.stepLabelDone, isCurrent && styles.stepLabelCurrent]}>
-                      {step.label}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-
+    return <DeliveryTrackingView order={order} onClose={() => navigation.navigate('Main')}>
+      <OrderTimeProposal orderId={orderId} />
             {/* Details Section */}
             <View style={styles.detailsSection}>
               <Text style={styles.detailsTitle}>Detalle del pedido</Text>
@@ -315,24 +184,7 @@ export const OrderStatusScreen: React.FC = () => {
               </View>
             </View>
 
-            {/* Actions */}
-            <View style={styles.bottomActions}>
-              {canCancel && (
-                <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} disabled={cancelling}>
-                  {cancelling ? (
-                    <ActivityIndicator size="small" color={colors.error} />
-                  ) : (
-                    <Text style={styles.cancelBtnText}>
-                      {order.status === 'PENDING' ? 'Cancelar pedido' : 'Cancelar pedido (con cargo)'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </ScrollView>
-      </View>
-    );
+    </DeliveryTrackingView>;
   }
 
   // Non-Map UI (Pending, Cancelled, Delivered)

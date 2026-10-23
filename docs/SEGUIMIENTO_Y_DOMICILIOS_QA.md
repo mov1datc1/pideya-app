@@ -33,3 +33,16 @@ Uber describe estado, mapa y progreso del repartidor: https://help.uber.com/en-G
 Uber contempla posiciones detenidas por GPS o tráfico: https://help.uber.com/ubereats/restaurants/article/delivery-partner-does-not-move-on-the-map?nodeId=44077948-ae58-42fc-9206-880d965c2b7d
 
 Rappi describe geolocalización del repartidor para la operación del negocio; esta fuente no permite afirmar cómo es la interfaz actual del cliente: https://merchants.rappi.com/es-mx/como-perfeccionar-entregas-a-repartidores-de-rappi
+
+
+## Diseño aprobado por referencia — implementación del 23/10
+
+Se unificaron la pestaña de seguimiento y el seguimiento individual en `DeliveryTrackingView`. Encabezado con logo oficial (la vista individual conserva regresar), tarjeta blanca, ETA destacada, pasos horizontales, teléfono funcional y negocio/destino. Los detalles del pedido individual se conservan dentro de la tarjeta desplazable. Las pantallas de ajustes, cancelación y recogida conservan sus reglas.
+
+La tarjeta se limita al 52% de la altura y se puede minimizar; el mapa se encuadra según la altura medida del encabezado y tarjeta. El mapa nativo termina sobre la tarjeta para mantener su atribución visible. Calles con mayor contraste y parques discretos. Moto de 58 puntos sin círculo, ruta agave con contorno blanco. Vista inclinada opcional: no se garantiza la geometría de edificios ni árboles de la imagen conceptual.
+
+No se inventa un rango de llegada ni un estado «Cerca de ti»: se muestra ETA real disponible y pasos Confirmado / Preparando (o Surtiendo) / En camino / Entregado. «Tu destino» evita asumir que todas las direcciones son casa. El tiempo se retira si la posición pierde frescura.
+
+Asset nuevo: `assets/scooter-tracking.png`, PNG RGBA con transparencia, 256 × 256. Generado con la herramienta integrada image_gen; original conservado, sin sustituir el asset anterior. Prompt: “Create one production mobile map marker PNG asset with TRUE TRANSPARENT background alpha. A compact tasteful 3D isometric delivery scooter with rider and square delivery box, facing upper right, viewed from elevated 45 degree perspective. Agave teal #2D8B7A body and helmet, charcoal wheels, ivory small accents, rider in dark teal uniform. No text, no logo, no circle backing, no ground plane, no scenery. Clean silhouette extremely legible at 52 pixels, simplified large forms without tiny detail. Entire scooter and rider visible, tightly centered within square image with 8% padding, very subtle contact shadow only underneath wheels. Premium polished miniature, not toy caricature. This is a new asset for PideYa delivery tracking map. Transparent outside subject, no white square.”
+
+Validación: TypeScript y 25 regresiones. Asset inspeccionado visualmente y firma PNG/transparencia verificada. Pendiente validación visual nativa en Redmi (sin SDK/emulador Android en la ruta local habitual); no se afirma equivalencia exacta con el concepto. Revisar pantalla pequeña, fuente ampliada, minimizar/expandir, logo de Google visible, botones, llamadas y reapertura de pedido. No se ejecutan builds ni despliegues en este cambio.
