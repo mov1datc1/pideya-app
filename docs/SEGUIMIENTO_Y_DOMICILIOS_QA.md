@@ -54,3 +54,9 @@ Solicitud expresa de AAB (no APK). Se mantiene `appVersionSource: remote` y `pro
 Seguimiento automático cada 10 segundos si cambiaron posición o ruta; mantiene negocio, destino, moto y geometría de ruta dentro del encuadre. Arrastrar/zoom manual pausa el seguimiento; el botón de navegación lo reactiva. Elegir 3D también lo pausa para respetar esa perspectiva. Ruta de referencia negocio-destino en agave suave, trayecto restante en agave destacado. No se presenta la línea de referencia como historial GPS recorrido.
 
 Google Directions respondió HTTP 200 / OK con polyline y duración a una consulta de prueba en Arandas. Esto verifica la API con la clave comprobada, no la entrega completa en Redmi ni permisos GPS del repartidor. Expo Doctor: 18/18 comprobaciones correctas. TypeScript y 25 regresiones aprobadas. Pendiente prueba física con cliente, negocio y repartidor; no se publica automáticamente en Google Play.
+
+Resultado confirmado: EAS `FINISHED`, versión **1.3.1**, **versionCode 32**, commit compilado `73ad2e8`. Build: https://expo.dev/accounts/pideya1/projects/pide-ya/builds/61554079-3789-474f-9b54-e4235cc54767
+
+AAB: https://expo.dev/artifacts/eas/M6JonPpL5ln8YcGk2SHwJ1JYSCWdoKQJhcnkP8BMtrg.aab
+
+Compilación completada y artefacto publicado en EAS; no se hizo submit a Google Play. La validación funcional/visual en Redmi sigue pendiente.
