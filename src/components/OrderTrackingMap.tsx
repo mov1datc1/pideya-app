@@ -31,6 +31,8 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
   const [ready, setReady] = useState(false);
   const [tilted, setTilted] = useState(false);
   const [driverImageLoaded, setDriverImageLoaded] = useState(false);
+  const [following, setFollowing] = useState(true);
+  const [businessRoute, setBusinessRoute] = useState<Coordinate[]>([]);
   const [routeCoords, setRouteCoords] = useState<Coordinate[]>([]);
   const [routeUnavailable, setRouteUnavailable] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -45,6 +47,7 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
   const client = useMemo(() => toCoordinate(clientLat, clientLng), [clientLat, clientLng]);
   const driver = useMemo(() => toCoordinate(driverLat, driverLng), [driverLat, driverLng]);
   const points = useMemo(() => [restaurant, client, driver].filter((p): p is Coordinate => !!p), [restaurant, client, driver]);
+  const framingPoints = useMemo(() => [...points, ...businessRoute, ...routeCoords], [points, businessRoute, routeCoords]);
   const latest = useRef({ restaurant, client, driver, onRouteInfo });
   latest.current = { restaurant, client, driver, onRouteInfo };
   // Android's native marker animation avoids animated props crossing the native map bridge.
@@ -69,6 +72,7 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
   const togglePerspective = () => {
     if (!ready) return;
     const next = !tilted;
+    setFollowing(false);
     setTilted(next);
     mapRef.current?.animateCamera({ pitch: next ? 45 : 0, heading: 0 }, { duration: 500 });
   };
@@ -79,16 +83,43 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
     if (points.length === 1) {
       mapRef.current?.animateToRegion({ ...points[0], latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
     } else {
-      mapRef.current?.fitToCoordinates(points, { edgePadding: { top: topInset, right: 45, bottom: 40, left: 45 }, animated: true });
+      mapRef.current?.fitToCoordinates(framingPoints, { edgePadding: { top: topInset, right: 45, bottom: 40, left: 45 }, animated: true });
     }
-  }, [ready, points, topInset, bottomInset]);
+  }, [ready, points, framingPoints, topInset, bottomInset]);
   useEffect(() => {
-    // Fit initially and when a driver first appears. Let the customer pan freely afterwards.
+    // Fit initially and when the sheet changes size.
     const key = `${!!restaurant}:${!!client}:${!!driver}:${Math.round(topInset)}:${Math.round(bottomInset)}`;
     if (!ready || !points.length || fitted.current === key) return;
     fitted.current = key;
     recenter();
   }, [ready, restaurant, client, driver, points.length, recenter]);
+
+  const frameState = useRef({ recenter, driverUpdatedAt, routeCoords, businessRoute });
+  frameState.current = { recenter, driverUpdatedAt, routeCoords, businessRoute };
+  useEffect(() => {
+    if (!following || !ready) return;
+    let previous = frameState.current;
+    previous.recenter();
+    const timer = setInterval(() => {
+      const current = frameState.current;
+      if (current.driverUpdatedAt !== previous.driverUpdatedAt || current.routeCoords !== previous.routeCoords || current.businessRoute !== previous.businessRoute) {
+        current.recenter();
+        previous = current;
+      }
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [following, ready]);
+
+  // Keep the business-to-home reference route while the bold route represents the remaining trip.
+  useEffect(() => {
+    let active = true;
+    setBusinessRoute([]);
+    if (status === 'ON_THE_WAY' && restaurant && client) {
+      void getDirectionsRoute(restaurant.latitude, restaurant.longitude, client.latitude, client.longitude)
+        .then(result => { if (active) setBusinessRoute(result?.coordinates ?? []); });
+    }
+    return () => { active = false; };
+  }, [status, restaurantLat, restaurantLng, clientLat, clientLng]);
 
   useEffect(() => {
     let active = true;
@@ -127,17 +158,19 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
     <MapView ref={mapRef} style={[StyleSheet.absoluteFillObject, { bottom: Math.max(0, bottomInset - 16) }]}
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
       initialRegion={{ ...points[0], latitudeDelta: 0.025, longitudeDelta: 0.025 }}
-      onMapReady={() => setReady(true)} customMapStyle={PIDEYA_MAP_STYLE}
+      onMapReady={() => setReady(true)} onPanDrag={() => setFollowing(false)}
+      onRegionChangeComplete={(_, details) => { if (details?.isGesture) setFollowing(false); }} customMapStyle={PIDEYA_MAP_STYLE}
       pitchEnabled={false} rotateEnabled={false} showsBuildings showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false}>
+      {businessRoute.length > 1 && <Polyline coordinates={businessRoute} strokeWidth={4} strokeColor="#A5C9BF" zIndex={0} />}
       {routeCoords.length > 1 && <>
         <Polyline coordinates={routeCoords} strokeWidth={9} strokeColor={colors.white} zIndex={1} />
         <Polyline coordinates={routeCoords} strokeWidth={5} strokeColor={colors.agave} zIndex={2} />
       </>}
       {restaurant && <Marker coordinate={restaurant} title={restaurantName || 'Establecimiento'} description="Origen de tu pedido" tracksViewChanges={false}>
-        <View style={[styles.pin, styles.storePin]}><Ionicons name="storefront" size={22} color={colors.white} /></View>
+        <View style={styles.labeledPin}><View style={[styles.pin, styles.storePin]}><Ionicons name="storefront" size={22} color={colors.white} /></View><Text numberOfLines={1} style={styles.pinLabel}>{restaurantName || 'Negocio'}</Text></View>
       </Marker>}
       {client && <Marker coordinate={client} title="Tu destino" description="Punto de entrega" tracksViewChanges={false}>
-        <View style={styles.pin}><Ionicons name="home" size={22} color={colors.white} /></View>
+        <View style={styles.labeledPin}><View style={styles.pin}><Ionicons name="home" size={22} color={colors.white} /></View><Text style={styles.pinLabel}>Tu destino</Text></View>
       </Marker>}
       {driver && <Marker ref={driverRef} coordinate={Platform.OS === 'android' ? initialDriver.current! : driver}
         title={driverName || 'Tu repartidor'} description="Última ubicación recibida" anchor={{ x: 0.5, y: 0.5 }}
@@ -145,8 +178,8 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
         <View style={styles.driverPin}><Image source={require('../../assets/scooter-tracking.png')} style={styles.scooter} fadeDuration={0} onLoad={() => setDriverImageLoaded(true)} /></View>
       </Marker>}
     </MapView>
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Centrar mapa en mi pedido" style={[styles.recenter, { bottom: bottomInset + 56 }]} onPress={recenter}>
-      <Ionicons name="locate" size={24} color={colors.agave} />
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={following ? "Seguimiento automático activo" : "Seguir pedido"} accessibilityState={{ selected: following }} style={[styles.recenter, { bottom: bottomInset + 56 }]} onPress={() => { setFollowing(true); recenter(); }}>
+      <Ionicons name={following ? "navigate" : "locate"} size={24} color={colors.agave} />
     </TouchableOpacity>
     <TouchableOpacity accessibilityRole="button" accessibilityLabel={tilted ? 'Ver mapa plano' : 'Ver mapa inclinado'} accessibilityState={{ selected: tilted }} style={[styles.perspective, { bottom: bottomInset }]} onPress={togglePerspective}>
       <Text style={styles.perspectiveLabel}>{tilted ? '2D' : '3D'}</Text>
@@ -162,6 +195,8 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
 const styles = StyleSheet.create({
   container: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.snow },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
+  labeledPin: { alignItems: 'center', maxWidth: 120 },
+  pinLabel: { fontFamily: fonts.outfit.semiBold, fontSize: 11, color: colors.ink, backgroundColor: colors.white, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2, marginTop: 3 },
   pin: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.agave, borderWidth: 3, borderColor: colors.white, alignItems: 'center', justifyContent: 'center' },
   storePin: { backgroundColor: colors.agave },
   driverPin: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center' },
