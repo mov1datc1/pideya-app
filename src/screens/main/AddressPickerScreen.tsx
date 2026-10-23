@@ -84,6 +84,7 @@ export const AddressPickerScreen: React.FC = () => {
     longitude: hasInitial ? initialLng : DEFAULT_REGION.longitude,
   });
   const [addressText, setAddressText] = useState(route.params?.currentAddress || '');
+  const [reference, setReference] = useState(route.params?.currentReference || '');
   const [searchText, setSearchText] = useState('');
   const [reverseAddress, setReverseAddress] = useState('');
   const [loadingLocation, setLoadingLocation] = useState(false);
@@ -112,10 +113,8 @@ export const AddressPickerScreen: React.FC = () => {
     const fetchAddrs = async () => {
       const addrs = await addressService.getAddresses();
       setSavedAddresses(addrs);
-      const def = addrs.find((a) => a.is_default) ?? addrs[0];
-      if (def) {
-        setSelectedAddressId(def.id);
-      }
+      // A saved address is selected only when its complete data is loaded by the user.
+      // Selecting just its id could overwrite its saved references with an empty form.
     };
     void fetchAddrs().catch(() => setLocationNotice('No pudimos cargar tus direcciones guardadas. Puedes elegir un punto en el mapa.'));
   }, []);
@@ -224,6 +223,8 @@ export const AddressPickerScreen: React.FC = () => {
     editedAddress.current = true;
     setSelectedAddressId(addr.id);
     setAddressText(addr.address_text);
+    setReference(addr.reference || '');
+    setSaveLabel(addr.label);
     if (addr.latitude && addr.longitude) {
       const newRegion: Region = {
         latitude: addr.latitude,
@@ -241,7 +242,7 @@ export const AddressPickerScreen: React.FC = () => {
     if (saving || !hasChosenPoint || !toCoordinate(pinLocation.latitude, pinLocation.longitude) || !finalAddress || loadingLocation || loadingGeocode) return;
     if (route.params?.onSelect) {
       confirmed.current = true;
-      route.params.onSelect({ address: finalAddress, latitude: pinLocation.latitude, longitude: pinLocation.longitude });
+      route.params.onSelect({ address: finalAddress, reference: reference.trim(), latitude: pinLocation.latitude, longitude: pinLocation.longitude });
       navigation.goBack();
       return;
     }
@@ -249,8 +250,12 @@ export const AddressPickerScreen: React.FC = () => {
     setSaving(true);
     try {
       const selected = savedAddresses.find(a => a.id === selectedAddressId && a.latitude === pinLocation.latitude && a.longitude === pinLocation.longitude && a.address_text === finalAddress);
-      if (selected) await addressService.setDefaultAddress(selected.id);
-      else await addressService.addAddress({ user_id: user.id, label: saveLabel, address_text: finalAddress, reference: null, latitude: pinLocation.latitude, longitude: pinLocation.longitude, is_default: true, is_pin_location: true });
+      if (selected) {
+        const updated = await addressService.updateAddress(selected.id, { reference: reference.trim() || null, label: saveLabel });
+        if (!updated) throw new Error('La dirección ya no existe');
+        await addressService.setDefaultAddress(selected.id);
+      }
+      else await addressService.addAddress({ user_id: user.id, label: saveLabel, address_text: finalAddress, reference: reference.trim() || null, latitude: pinLocation.latitude, longitude: pinLocation.longitude, is_default: true, is_pin_location: true });
       confirmed.current = true;
       navigation.goBack();
     } catch { Alert.alert('No se guardó la dirección', 'Revisa tu conexión e intenta de nuevo.'); }
@@ -411,15 +416,32 @@ export const AddressPickerScreen: React.FC = () => {
             )}
           </ScrollView>
 
-          {/* Editable instructions field */}
+          <Text style={{ fontFamily: fonts.outfit.semiBold, color: colors.ink }}>Dirección de entrega</Text>
+          <Text style={{ fontFamily: fonts.outfit.regular, color: colors['ink-muted'], marginTop: 4 }}>Coloca el pin en la entrada accesible desde el camino, no en el centro del terreno.</Text>
           <TextInput
             style={styles.editableAddress}
-            placeholder="Calle, número y colonia"
+            accessibilityLabel="Dirección de entrega"
+            placeholder="Calle y número, o nombre del rancho y localidad"
+            maxLength={1000}
             placeholderTextColor={colors['ink-hint']}
             value={addressText}
             onChangeText={text => { editedAddress.current = true; setAddressText(text); }}
             multiline
           />
+
+          <Text style={{ fontFamily: fonts.outfit.semiBold, color: colors.ink }}>Indicaciones para llegar y entregarte · opcional</Text>
+          <TextInput
+            style={styles.editableAddress}
+            accessibilityLabel="Indicaciones para llegar y entregar"
+            placeholder="Casa azul, reja blanca. Entra por el camino junto a la escuela y toca el timbre del portón."
+            placeholderTextColor={colors['ink-hint']}
+            value={reference}
+            onChangeText={setReference}
+            maxLength={500}
+            multiline
+            textAlignVertical="top"
+          />
+          <Text style={{ fontFamily: fonts.outfit.regular, color: colors['ink-muted'], marginBottom: 8 }}>Puedes indicar piso, acceso o dónde esperarás. Evita guardar claves permanentes; los códigos temporales se agregan al confirmar cada pedido. {reference.length}/500</Text>
 
           {!route.params?.onSelect && <View style={{ flexDirection: 'row', gap: 8, marginVertical: 8 }}>{['Casa', 'Trabajo', 'Otro'].map(label => <TouchableOpacity key={label} onPress={() => setSaveLabel(label)} style={{ padding: 12, borderRadius: 12, backgroundColor: saveLabel === label ? colors['agave-light'] : colors.cloud }}><Text style={{ color: colors.agave, fontFamily: fonts.outfit.semiBold }}>{label}</Text></TouchableOpacity>)}</View>}
           {/* Large Agave Teal Confirm Button */}

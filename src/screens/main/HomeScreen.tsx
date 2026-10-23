@@ -142,7 +142,7 @@ export const HomeScreen: React.FC = () => {
 
   // ── Label dialog state (shown after map confirmation) ──
   const [showLabelDialog, setShowLabelDialog] = useState(false);
-  const [pendingLocation, setPendingLocation] = useState<{ address: string; latitude: number; longitude: number } | null>(null);
+  const [pendingLocation, setPendingLocation] = useState<{ address: string; reference?: string; latitude: number; longitude: number } | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<'Casa' | 'Trabajo' | 'Otro'>('Casa');
   const [customLabel, setCustomLabel] = useState('');
   const focusState = useRef({ addressesLoaded, showLabelDialog });
@@ -200,7 +200,7 @@ export const HomeScreen: React.FC = () => {
       locateOnOpen: false,
       latitude: userLat || 20.8167,
       longitude: userLng || -102.7633,
-      onSelect: (data: { address: string; latitude: number; longitude: number }) => {
+      onSelect: (data: { address: string; reference?: string; latitude: number; longitude: number }) => {
         setPendingLocation(data);
         setShowLabelDialog(true);
       },
@@ -219,7 +219,7 @@ export const HomeScreen: React.FC = () => {
       user_id: user.id,
       label,
       address_text: pendingLocation.address,
-      reference: null,
+      reference: pendingLocation.reference?.trim() || null,
       latitude: pendingLocation.latitude,
       longitude: pendingLocation.longitude,
       is_default: true,
@@ -228,7 +228,7 @@ export const HomeScreen: React.FC = () => {
 
     setActiveAddressId(newAddr.id);
     setSavedAddresses(prev => [...prev.map(a => ({ ...a, is_default: false })), newAddr]);
-    setDeliveryAddress(newAddr.address_text, newAddr.latitude, newAddr.longitude, '');
+    setDeliveryAddress(newAddr.address_text, newAddr.latitude, newAddr.longitude, newAddr.reference || '');
     guide.advance('category');
     setUserLat(pendingLocation.latitude);
     setUserLng(pendingLocation.longitude);

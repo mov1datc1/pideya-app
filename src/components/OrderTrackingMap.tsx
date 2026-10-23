@@ -6,6 +6,7 @@ import { colors, fonts, spacing } from '../theme';
 import { PIDEYA_MAP_STYLE } from '../constants/mapStyle';
 import { getDirectionsRoute } from '../services/directions';
 import { toCoordinate, Coordinate } from '../utils/coordinates';
+import { locationFreshness, markerAnimationDuration } from '../utils/trackingPresentation';
 
 interface Props {
   restaurantLat: number | null;
@@ -25,6 +26,7 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
   const mapRef = useRef<MapView>(null);
   const driverRef = useRef<React.ElementRef<typeof Marker>>(null);
   const [ready, setReady] = useState(false);
+  const [tilted, setTilted] = useState(false);
   const [driverImageLoaded, setDriverImageLoaded] = useState(false);
   const [routeCoords, setRouteCoords] = useState<Coordinate[]>([]);
   const [routeUnavailable, setRouteUnavailable] = useState(false);
@@ -33,8 +35,8 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
     const timer = setInterval(() => setNow(Date.now()), 15_000);
     return () => clearInterval(timer);
   }, []);
-  const locationTime = Date.parse(driverUpdatedAt ?? '');
-  const staleDriver = !Number.isFinite(locationTime) || now - locationTime > 90_000;
+  const freshness = locationFreshness(driverUpdatedAt, now);
+  const staleDriver = freshness.stale;
   const fitted = useRef('');
   const restaurant = useMemo(() => toCoordinate(restaurantLat, restaurantLng), [restaurantLat, restaurantLng]);
   const client = useMemo(() => toCoordinate(clientLat, clientLng), [clientLat, clientLng]);
@@ -45,17 +47,32 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
   // Android's native marker animation avoids animated props crossing the native map bridge.
   const initialDriver = useRef(driver);
   if (!initialDriver.current && driver) initialDriver.current = driver;
+  const previousDriver = useRef<{ point: Coordinate; updatedAt: string | null | undefined } | null>(null);
   useEffect(() => {
-    if (ready && driver && Platform.OS === 'android') driverRef.current?.animateMarkerToCoordinate(driver, 1500);
-  }, [driver, ready]);
+    if (!ready || !driver) return;
+    const previous = previousDriver.current;
+    if (Platform.OS === 'android') {
+      const duration = previous ? markerAnimationDuration(previous.point, driver, previous.updatedAt, driverUpdatedAt, Date.now()) : 0;
+      driverRef.current?.animateMarkerToCoordinate(driver, duration);
+    }
+    previousDriver.current = { point: driver, updatedAt: driverUpdatedAt };
+  }, [driver, ready, driverUpdatedAt]);
   useEffect(() => {
     if (!driverImageLoaded || !ready) return;
     const timer = setTimeout(() => driverRef.current?.redraw(), 100);
     return () => clearTimeout(timer);
   }, [driverImageLoaded, ready, driverName]);
 
+  const togglePerspective = () => {
+    if (!ready) return;
+    const next = !tilted;
+    setTilted(next);
+    mapRef.current?.animateCamera({ pitch: next ? 45 : 0, heading: 0 }, { duration: 500 });
+  };
   const recenter = useCallback(() => {
     if (!ready || !points.length) return;
+    setTilted(false);
+    mapRef.current?.animateCamera({ pitch: 0, heading: 0 }, { duration: 0 });
     if (points.length === 1) {
       mapRef.current?.animateToRegion({ ...points[0], latitudeDelta: 0.015, longitudeDelta: 0.015 }, 500);
     } else {
@@ -108,7 +125,7 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
       provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
       initialRegion={{ ...points[0], latitudeDelta: 0.025, longitudeDelta: 0.025 }}
       onMapReady={() => setReady(true)} customMapStyle={PIDEYA_MAP_STYLE}
-      showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false}>
+      pitchEnabled={false} rotateEnabled={false} showsBuildings showsUserLocation={false} showsMyLocationButton={false} showsCompass={false} toolbarEnabled={false}>
       {routeCoords.length > 1 && <Polyline coordinates={routeCoords} strokeWidth={5} strokeColor={colors.agave} />}
       {restaurant && <Marker coordinate={restaurant} title={restaurantName || 'Establecimiento'} description="Origen de tu pedido" tracksViewChanges={false}>
         <View style={[styles.pin, styles.storePin]}><Ionicons name="storefront" size={22} color={colors.white} /></View>
@@ -125,7 +142,14 @@ export const OrderTrackingMap: React.FC<Props> = ({ restaurantLat, restaurantLng
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Centrar mapa en mi pedido" style={styles.recenter} onPress={recenter}>
       <Ionicons name="locate" size={24} color={colors.agave} />
     </TouchableOpacity>
-    {(routeUnavailable || (driver && staleDriver)) && <View style={styles.routeNotice}><Text style={styles.caption}>{driver && staleDriver ? 'Última ubicación conocida · esperando señal' : 'Ruta no disponible · mostrando ubicaciones'}</Text></View>}
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel={tilted ? 'Ver mapa plano' : 'Ver mapa inclinado'} accessibilityState={{ selected: tilted }} style={styles.perspective} onPress={togglePerspective}>
+      <Text style={styles.perspectiveLabel}>{tilted ? '2D' : '3D'}</Text>
+    </TouchableOpacity>
+    <View pointerEvents="none" style={styles.routeNotice}>
+      <Text style={styles.caption}>{driver ? freshness.label : status === 'ON_THE_WAY' ? 'Esperando la ubicación del repartidor' : 'Preparando tu pedido · negocio y destino'}</Text>
+      {driver && staleDriver && <Text style={styles.caption}>Último punto recibido · esperando actualización</Text>}
+      {routeUnavailable && !staleDriver && <Text style={styles.caption}>Ruta no disponible · mostrando ubicaciones</Text>}
+    </View>
   </View>;
 };
 
@@ -137,6 +161,8 @@ const styles = StyleSheet.create({
   driverPin: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors['agave-light'], borderColor: colors.agave, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   scooter: { width: 68, height: 68, resizeMode: 'contain' },
   recenter: { position: 'absolute', top: 110, right: spacing.lg, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  routeNotice: { position: 'absolute', top: 168, left: spacing.lg, right: spacing.lg, backgroundColor: colors.white, borderRadius: 12, padding: spacing.sm },
+  perspective: { position: 'absolute', top: 168, right: spacing.lg, width: 48, height: 48, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  perspectiveLabel: { fontFamily: fonts.outfit.medium, fontSize: 14, color: colors.agave },
+  routeNotice: { position: 'absolute', top: 110, left: spacing.lg, right: 80, backgroundColor: colors.white, borderRadius: 12, padding: spacing.sm },
   caption: { fontFamily: fonts.outfit.medium, color: colors['ink-secondary'], fontSize: 12, textAlign: 'center' },
 });

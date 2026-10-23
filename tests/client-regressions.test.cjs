@@ -266,3 +266,25 @@ test('cart identity preserves pizza toppings and kitchen notes, independent of e
   assert.notEqual(cartLineKey(base), cartLineKey({...base,notes:'Sin cebolla'}));
   assert.equal(cartLineKey({...base,selected_options:[cheese,pepperoni]}),cartLineKey({...base,selected_options:[pepperoni,cheese],quantity:3}));
 });
+
+test('tracking freshness rejects unknown and future times, expires after 90 seconds', () => {
+  const { locationFreshness } = load('utils/trackingPresentation.ts');
+  const now = Date.parse('2026-10-23T18:00:00Z');
+  for (const value of [null, 'bad', new Date(now + 120000).toISOString(), new Date(now - 91000).toISOString()]) assert.equal(locationFreshness(value, now).stale, true);
+  assert.equal(locationFreshness(new Date(now - 90000).toISOString(), now).stale, false);
+  assert.match(locationFreshness(new Date(now - 120000).toISOString(), now).label, /2 min/);
+});
+
+test('motorcycle animates only short fresh movements, never reconnect jumps', () => {
+  const { markerAnimationDuration } = load('utils/trackingPresentation.ts');
+  const now = Date.parse('2026-10-23T18:00:00Z');
+  const stamp = new Date(now).toISOString();
+  const previous = new Date(now - 10000).toISOString();
+  const from = { latitude: 20.7, longitude: -102.3 };
+  const near = { latitude: 20.7001, longitude: -102.3 };
+  assert.equal(markerAnimationDuration(from, near, previous, stamp, now), 1500);
+  assert.equal(markerAnimationDuration(from, { latitude: 20.8, longitude: -102.3 }, previous, stamp, now), 0);
+  assert.equal(markerAnimationDuration(from, near, new Date(now - 120000).toISOString(), stamp, now), 0);
+  assert.equal(markerAnimationDuration(from, near, previous, stamp, now + 120000), 0);
+  assert.equal(markerAnimationDuration(from, near, stamp, previous, now), 0);
+});

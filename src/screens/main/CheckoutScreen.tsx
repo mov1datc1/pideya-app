@@ -167,7 +167,10 @@ export const CheckoutScreen: React.FC = () => {
       latitude: addressLat,
       longitude: addressLng,
       currentAddress: addressText,
-      onSelect: (data: { address: string; latitude: number; longitude: number }) => {
+      currentReference: locationNote,
+      onSelect: (data: { address: string; reference?: string; latitude: number; longitude: number }) => {
+        setSelectedAddressId(null);
+        setLocationNote(data.reference || '');
         setAddressText(data.address);
         setAddressLat(data.latitude);
         setAddressLng(data.longitude);
@@ -280,7 +283,7 @@ export const CheckoutScreen: React.FC = () => {
         client_phone: profile?.phone || '',
         client_lat: isPickup ? 0 : (selectedAddress?.latitude || addressLat || 0),
         client_lng: isPickup ? 0 : (selectedAddress?.longitude || addressLng || 0),
-        client_location_note: isPickup ? 'PICKUP — Recoger en local' : (locationNote || undefined),
+        client_location_note: isPickup ? 'PICKUP — Recoger en local' : ([addressText.trim(), locationNote.trim() ? `Indicaciones: ${locationNote.trim()}` : ''].filter(Boolean).join('\n') || undefined),
         items: orderItems,
         subtotal: itemsTotal,
         commission_amount: commissionFee,
@@ -393,15 +396,24 @@ export const CheckoutScreen: React.FC = () => {
                 Selecciona una dirección desde la pantalla principal.
               </Text>
             )}
-            {locationNote ? (
-              <View style={styles.instructionsRow}>
-                <Ionicons name="person-outline" size={20} color={colors['ink-muted']} />
-                <View style={styles.instructionsInfo}>
-                  <Text style={styles.instructionsTitle}>Referencia</Text>
-                  <Text style={styles.instructionsText} numberOfLines={1}>{locationNote}</Text>
-                </View>
+            <View style={styles.instructionsRow}>
+              <Ionicons name="location-outline" size={20} color={colors.agave} />
+              <View style={styles.instructionsInfo}>
+                <Text style={styles.instructionsTitle}>Indicaciones para esta entrega</Text>
+                <TextInput
+                  accessibilityLabel="Indicaciones para esta entrega"
+                  style={[styles.instructionsText, { minHeight: 80, textAlignVertical: 'top', paddingVertical: 10 }]}
+                  value={locationNote}
+                  onChangeText={setLocationNote}
+                  placeholder="Color de la casa, entrada, piso, timbre o acceso temporal…"
+                  placeholderTextColor={colors['ink-hint']}
+                  maxLength={500}
+                  multiline
+                />
+                <Text style={styles.instructionsText}>El negocio y tu repartidor verán estas indicaciones. Los cambios aquí son solo para este pedido.</Text>
+                {cart.payment_method === 'cash' && <Text style={[styles.instructionsText, { marginTop: 8 }]}>Recibe tu pedido en persona para pagar en efectivo. Indica si esperarás en la entrada o en el portón.</Text>}
               </View>
-            ) : null}
+            </View>
           </View>
         )}
 
