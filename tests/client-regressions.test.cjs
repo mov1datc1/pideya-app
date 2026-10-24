@@ -241,7 +241,7 @@ test('order creation uses authenticated identity and history supports account lo
     then(resolve) { return Promise.resolve({data:[],error:null}).then(resolve); },
   };
   const supabase = { auth: { async getSession() { return {data:{session:{user:{id:'account-uuid'}}}}; } }, from() { return chain; } };
-  const service = load('services/orders.ts', { './supabase': { supabase } });
+  const service = load('services/orders.ts', { './supabase': { supabase }, './technicalIncidents': { reportCheckoutFailure() {} } });
   await service.createOrder({restaurant_id:'shop',client_phone:'+523780000000'});
   assert.equal(calls.find(c=>c[0]==='insert')[1].client_user_id,'account-uuid');
   await service.getOrderHistory('+523780000000',50);
@@ -308,4 +308,29 @@ test('checkout shows actionable price errors without disclosing database interna
   assert.equal(parseAppError({ message: reason, code: 'P0001' }, 'Error'), reason);
   assert.equal(parseAppError({ message: 'El domicilio está fuera de cobertura' }, 'Error'), 'El domicilio está fuera de cobertura');
   assert.doesNotMatch(parseAppError({ message: 'permission denied for secret_table' }, 'Error'), /secret_table/);
+});
+
+
+test('technical incident classification never includes customer details', () => {
+ const { technicalErrorCode } = load('utils/technicalErrorCode.ts');
+ assert.equal(technicalErrorCode({message:'Los precios o cargos cambiaron; revisa el carrito antes de confirmar'}), 'CHECKOUT_PRICE_CHANGED');
+ assert.equal(technicalErrorCode({message:'private address token@example.com',code:'arbitrary'}), 'CHECKOUT_UNEXPECTED');
+ assert.equal(technicalErrorCode({message:'permission denied',code:'42501'}), 'ACCESS_DENIED');
+});
+
+test('incident reporting excludes sensitive payload and survives telemetry outages', async () => {
+  let captured;
+  const supabase={rpc(name,params){captured={name,params};return {async abortSignal(signal){assert.equal(signal.aborted,false);throw Error('offline');}};}};
+  const service=load('services/technicalIncidents.ts',{
+    'expo-crypto':{randomUUID:()=> 'incident-id'},
+    'expo-application':{nativeApplicationVersion:'1.3.2',nativeBuildVersion:'33'},
+    'expo-constants':{default:{expoConfig:{}}},
+    './supabase':{supabase},
+  });
+  await assert.doesNotReject(()=>service.reportCheckoutFailure({message:'SQL secret address token',details:'private'},'shop'));
+  assert.equal(captured.name,'report_technical_incident');
+  assert.equal(captured.params.p_code,'CHECKOUT_UNEXPECTED');
+  assert.equal(captured.params.p_build,'33');
+  assert.equal(JSON.stringify(captured).includes('secret'),false);
+  assert.equal('user_id' in captured.params,false);
 });

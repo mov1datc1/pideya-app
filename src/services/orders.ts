@@ -1,3 +1,4 @@
+import { reportCheckoutFailure } from './technicalIncidents';
 import { realtimeChannelName } from '../utils/realtimeChannel';
 import { supabase } from './supabase';
 import { ACTIVE_ORDER_STATUSES } from '../utils/orderStatus';
@@ -32,7 +33,7 @@ export const createOrder = async (input: CreateOrderInput) => {
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) { void reportCheckoutFailure(error, input.restaurant_id); throw error; }
   return data as Order;
 };
 
