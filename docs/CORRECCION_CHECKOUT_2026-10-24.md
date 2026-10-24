@@ -9,3 +9,8 @@ Corrección: leer tarifas reales del negocio, calcular distancia con la misma f�
 Se retira la suma de propina del checkout: el contrato de orders no tiene campo tip y su validador no la incluye. La interfaz explica que puede entregarse voluntariamente en efectivo al recibir, fuera del total. No se cambian silenciosamente totales en servidor.
 
 Versión correctiva 1.3.2, versionCode administrado por EAS. Expo Doctor 18/18, TypeScript correcto, 27 regresiones (incluyendo rangos de envío, cobertura, tarifa cero y mensajes). La app 1.3.1 instalada necesita actualizarse; no basta con cambiar datos en backend.
+
+Resultado EAS: FINISHED. Versión 1.3.2 / versionCode 33; commit compilado 61cabf0.
+Build: https://expo.dev/accounts/pideya1/projects/pide-ya/builds/224bff6a-794d-4878-b215-431bac06ce6b
+AAB: https://expo.dev/artifacts/eas/pRKKoCFnLf_RYSj1TJv8F__qxu_69mXOwxfOetb77Us.aab
+No se envió automáticamente a Google Play. Falta instalar desde pruebas internas y repetir el pedido en Redmi.
