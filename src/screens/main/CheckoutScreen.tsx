@@ -18,6 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FirstOrderGuideCard, useFirstOrderGuide } from '../../components/guidedTour/FirstOrderGuide';
 import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
+import { getRestaurantById } from '../../services/restaurants';
+import { deliveryPrice } from '../../utils/deliveryPricing';
+import type { Restaurant } from '../../types/database';
 import { createOrder } from '../../services/orders';
 import { getFlowTypeForRestaurant, getPickingPreferences, savePickingPreferences } from '../../services/picking';
 import * as clientProfileService from '../../services/clientProfile';
@@ -38,7 +41,6 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] =
   { value: 'oxxo', label: 'OXXO', icon: 'storefront-outline' },
 ];
 
-const TIP_OPTIONS = [0, 10, 20, 30, 50];
 
 
 
@@ -225,9 +227,26 @@ export const CheckoutScreen: React.FC = () => {
 
   // Price calculations
   const isPickup = cart.delivery_type === 'pickup';
-  const deliveryFee = isPickup ? 0 : 25;
+  const [pricingBusiness, setPricingBusiness] = useState<Restaurant | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(true);
+  const [pricingError, setPricingError] = useState('');
+  useEffect(() => {
+    let active = true;
+    setPricingLoading(true); setPricingBusiness(null); setPricingError('');
+    getRestaurantById(cart.restaurant_id).then(b => { if (active) setPricingBusiness(b); })
+      .catch(() => { if (active) setPricingError('No pudimos consultar la tarifa del negocio. Intenta de nuevo.'); })
+      .finally(() => { if (active) setPricingLoading(false); });
+    return () => { active = false; };
+  }, [cart.restaurant_id]);
+  useEffect(() => { if (cart.tip_amount) setTip(0); }, [cart.tip_amount, setTip]);
+  const deliveryQuote = useMemo(() => {
+    const address = savedAddresses.find(a => a.id === selectedAddressId);
+    try { return { fee: deliveryPrice(pricingBusiness, cart.delivery_type, address?.latitude ?? addressLat, address?.longitude ?? addressLng), error: '' }; }
+    catch (e) { return { fee: 0, error: (e as Error).message }; }
+  }, [pricingBusiness, cart.delivery_type, savedAddresses, selectedAddressId, addressLat, addressLng]);
+  const deliveryFee = deliveryQuote.fee;
   const commissionFee = useMemo(() => calculateCommission(itemsTotal, commissionTiers), [itemsTotal, commissionTiers]);
-  const total = itemsTotal + deliveryFee + commissionFee + cart.tip_amount;
+  const total = itemsTotal + deliveryFee + commissionFee;
 
   const selectedAddress = useMemo(
     () => savedAddresses.find((a) => a.id === selectedAddressId),
@@ -247,10 +266,22 @@ export const CheckoutScreen: React.FC = () => {
       return;
     }
 
+    if (pricingLoading || pricingError || deliveryQuote.error) {
+      Alert.alert('Revisa el envío', pricingLoading ? 'Estamos consultando la tarifa del negocio.' : pricingError || deliveryQuote.error);
+      return;
+    }
     setDeliveryAddress(addressText, addressLat, addressLng, locationNote);
 
     setSubmitting(true);
     try {
+      const [latestBusiness, latestTiers] = await Promise.all([getRestaurantById(cart.restaurant_id), fetchCommissionTiers(true)]);
+      const latestFee = deliveryPrice(latestBusiness, cart.delivery_type, selectedAddress?.latitude ?? addressLat, selectedAddress?.longitude ?? addressLng);
+      const latestCommission = calculateCommission(itemsTotal, latestTiers);
+      setPricingBusiness(latestBusiness); setCommissionTiers(latestTiers);
+      if (latestFee !== deliveryFee || latestCommission !== commissionFee) {
+        Alert.alert('Importe actualizado', 'Las tarifas cambiaron. Revisa el total actualizado y confirma nuevamente.');
+        return;
+      }
       // Revalidate category before submitting, even if the user confirms before the initial lookup finishes.
       const confirmedFlow = await getFlowTypeForRestaurant(cart.restaurant_id, true);
       // Check if user is blocked
@@ -281,8 +312,8 @@ export const CheckoutScreen: React.FC = () => {
         restaurant_id: cart.restaurant_id,
         client_name: profile?.full_name || 'Cliente',
         client_phone: profile?.phone || '',
-        client_lat: isPickup ? 0 : (selectedAddress?.latitude || addressLat || 0),
-        client_lng: isPickup ? 0 : (selectedAddress?.longitude || addressLng || 0),
+        client_lat: isPickup ? 0 : (selectedAddress?.latitude ?? addressLat ?? 0),
+        client_lng: isPickup ? 0 : (selectedAddress?.longitude ?? addressLng ?? 0),
         client_location_note: isPickup ? 'PICKUP — Recoger en local' : ([addressText.trim(), locationNote.trim() ? `Indicaciones: ${locationNote.trim()}` : ''].filter(Boolean).join('\n') || undefined),
         items: orderItems,
         subtotal: itemsTotal,
@@ -613,31 +644,15 @@ export const CheckoutScreen: React.FC = () => {
           )}
         </View>
 
-        {/* ── TIP (delivery only) ── */}
-        {!isPickup && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="heart-outline" size={20} color={colors.agave} />
-            <Text style={styles.sectionTitle}>Propina para el repartidor</Text>
-          </View>
-          <View style={styles.tipOptions}>
-            {TIP_OPTIONS.map((amount) => {
-              const isActive = cart.tip_amount === amount;
-              return (
-                <TouchableOpacity
-                  key={amount}
-                  style={[styles.tipOption, isActive && styles.tipOptionActive]}
-                  onPress={() => setTip(amount)}
-                >
-                  <Text style={[styles.tipText, isActive && styles.tipTextActive]}>
-                    {amount === 0 ? 'Sin propina' : `$${amount}`}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-        )}
+        {!isPickup && <View style={styles.section}><Text style={styles.priceLabel}>Si deseas dar propina, entrégala en efectivo al repartidor al recibir. No está incluida en el total.</Text></View>}
+        {(pricingLoading || pricingError || deliveryQuote.error) && <View style={styles.section}><Text style={styles.priceLabel}>{pricingLoading ? 'Consultando tarifa de envío…' : pricingError || deliveryQuote.error}</Text></View>}
+
+        {!!pricingError && <TouchableOpacity accessibilityRole="button" onPress={() => {
+          setPricingLoading(true); setPricingError('');
+          getRestaurantById(cart.restaurant_id).then(setPricingBusiness)
+            .catch(() => setPricingError('No pudimos consultar la tarifa del negocio. Intenta de nuevo.'))
+            .finally(() => setPricingLoading(false));
+        }}><Text style={styles.priceLabel}>Reintentar consulta de envío</Text></TouchableOpacity>}
 
         {/* ── PRICE BREAKDOWN ── */}
         <View style={styles.section}>
@@ -659,7 +674,7 @@ export const CheckoutScreen: React.FC = () => {
                 <Ionicons name="information-circle-outline" size={16} color={colors['ink-hint']} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.priceValue}>${deliveryFee.toFixed(2)}</Text>
+            <Text style={styles.priceValue}>{pricingLoading || pricingError || deliveryQuote.error ? 'Por confirmar' : `$${deliveryFee.toFixed(2)}`}</Text>
           </View>
           )}
           <View style={styles.priceRow}>
@@ -677,15 +692,10 @@ export const CheckoutScreen: React.FC = () => {
             </View>
             <Text style={styles.priceValue}>${commissionFee.toFixed(2)}</Text>
           </View>
-          {cart.tip_amount > 0 && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Propina</Text>
-              <Text style={styles.priceValue}>${cart.tip_amount.toFixed(2)}</Text>
-            </View>
-          )}
+
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>{pricingLoading || pricingError || deliveryQuote.error ? 'Por confirmar' : `$${total.toFixed(2)}`}</Text>
           </View>
         </View>
 
@@ -695,16 +705,16 @@ export const CheckoutScreen: React.FC = () => {
       {/* ── PLACE ORDER BUTTON ── */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
-          style={[styles.orderBtn, submitting && styles.orderBtnDisabled]}
+          style={[styles.orderBtn, (submitting || pricingLoading || !!pricingError || !!deliveryQuote.error) && styles.orderBtnDisabled]}
           onPress={handlePlaceOrder}
           activeOpacity={0.9}
-          disabled={submitting}
+          disabled={submitting || pricingLoading || !!pricingError || !!deliveryQuote.error}
         >
           {submitting ? (
             <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={styles.orderBtnText}>
-              Hacer el pedido  ·  ${total.toFixed(2)}
+              {pricingLoading ? 'Consultando envío…' : pricingError || deliveryQuote.error ? 'Revisa el envío' : `Hacer el pedido · $${total.toFixed(2)}`}
             </Text>
           )}
         </TouchableOpacity>

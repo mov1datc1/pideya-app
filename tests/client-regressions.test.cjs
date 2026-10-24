@@ -288,3 +288,24 @@ test('motorcycle animates only short fresh movements, never reconnect jumps', ()
   assert.equal(markerAnimationDuration(from, near, previous, stamp, now + 120000), 0);
   assert.equal(markerAnimationDuration(from, near, stamp, previous, now), 0);
 });
+
+test('checkout uses business delivery tariffs and validates coverage rather than fixed $25', () => {
+  const { deliveryPrice } = load('utils/deliveryPricing.ts');
+  const b = { lat: 20.7, lng: -102.35, delivery_radius_km: 30, delivery_fee_0_10: '50.00', delivery_fee_10_15: 60, delivery_fee_15_20: 70, delivery_fee_20_30: 80 };
+  const latitude = km => b.lat + km / 6371 * 180 / Math.PI;
+  assert.equal(deliveryPrice(b, 'delivery', b.lat, b.lng), 50);
+  for (const [km, fee] of [[9.99,50],[10.01,60],[14.99,60],[15.01,70],[19.99,70],[20.01,80]]) assert.equal(deliveryPrice(b, 'delivery', latitude(km), b.lng), fee);
+  assert.equal(deliveryPrice({ ...b, delivery_fee_0_10: 0 }, 'delivery', b.lat, b.lng), 0);
+  assert.equal(deliveryPrice(b, 'pickup', 0, 0), 0);
+  assert.throws(() => deliveryPrice(b, 'delivery', latitude(31), b.lng), /fuera de cobertura/);
+  assert.throws(() => deliveryPrice(b, 'delivery', 0, 0), /Ubicación/);
+  assert.throws(() => deliveryPrice(null, 'delivery', b.lat, b.lng), /tarifa/);
+});
+
+test('checkout shows actionable price errors without disclosing database internals', () => {
+  const { parseAppError } = load('utils/errorHandler.ts');
+  const reason = 'Los precios o cargos cambiaron; revisa el carrito antes de confirmar';
+  assert.equal(parseAppError({ message: reason, code: 'P0001' }, 'Error'), reason);
+  assert.equal(parseAppError({ message: 'El domicilio está fuera de cobertura' }, 'Error'), 'El domicilio está fuera de cobertura');
+  assert.doesNotMatch(parseAppError({ message: 'permission denied for secret_table' }, 'Error'), /secret_table/);
+});

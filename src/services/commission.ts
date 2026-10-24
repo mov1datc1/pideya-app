@@ -22,7 +22,7 @@ const DEFAULT_TIERS: CommissionTier[] = [
  * Fetch commission tiers from Supabase app_settings.
  * Falls back to cached value, then to DEFAULT_TIERS.
  */
-export const fetchCommissionTiers = async (): Promise<CommissionTier[]> => {
+export const fetchCommissionTiers = async (requireFresh = false): Promise<CommissionTier[]> => {
   try {
     const { data, error } = await supabase
       .from('app_settings')
@@ -39,6 +39,7 @@ export const fetchCommissionTiers = async (): Promise<CommissionTier[]> => {
       return tiers;
     }
   } catch (e) {
+    if (requireFresh) throw e;
     console.warn('[PideYa] fetchCommissionTiers error, using cache:', e);
   }
 

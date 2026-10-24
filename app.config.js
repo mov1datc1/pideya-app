@@ -10,7 +10,7 @@ module.exports = {
   expo: {
     name: 'Pide ya',
     slug: 'pide-ya',
-    version: '1.3.1',
+    version: '1.3.2',
     jsEngine: 'hermes',
     orientation: 'portrait',
     icon: './assets/icon.png',

@@ -13,6 +13,18 @@ export const parseAppError = (
   const message = err?.message || err?.error_description || err?.toString() || '';
   const strMessage = typeof message === 'string' ? message.toLowerCase() : '';
 
+  // Only expose known operational messages; never raw SQL, policies or database details.
+  const checkoutMessages = [
+    'Los precios o cargos cambiaron; revisa el carrito antes de confirmar',
+    'El precio cambió: actualiza tu carrito', 'Un producto ya no está disponible',
+    'Extra no disponible o precio cambiado', 'El domicilio está fuera de cobertura',
+    'Ubicación de entrega inválida', 'Negocio o categoría no disponible',
+    'Inicia sesión para crear el pedido', 'Inicia sesión para confirmar tu pedido',
+    'No pudimos consultar la tarifa del negocio. Intenta de nuevo.',
+  ];
+  const knownMessage = checkoutMessages.find(text => text.toLowerCase() === strMessage);
+  if (knownMessage) return knownMessage;
+
   // 1. Errores de Red (Internet)
   if (
     strMessage.includes('failed to fetch') ||
