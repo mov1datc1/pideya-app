@@ -31,6 +31,10 @@ Cuenta dedicada de envío con rol Firebase Cloud Messaging API Admin; se cargó 
 
 Build: https://expo.dev/accounts/pideya1/projects/pide-ya/builds/d93b5da7-8e00-45a2-b0f1-87f61e3b86d3
 
+Estado final EAS: **FINISHED**, compilación completada el 25 de octubre de 2026.
+
+[Descargar AAB 1.3.3 (34)](https://expo.dev/artifacts/eas/_Fb4Us7x3-VCVcEGQEMeNI4_T_ow1MI198U-jp5_FMQ.aab). No se envió automáticamente a Google Play.
+
 ## Prueba pendiente en Redmi
 
 1. Subir el AAB a pruebas internas y actualizar desde Google Play; un AAB no se instala como APK directamente.
