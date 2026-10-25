@@ -23,6 +23,8 @@ export type RestaurantStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED';
 export type OrderStatus =
   | 'PENDING'
   | 'ACCEPTED'
+  | 'PREPARING'
+  | 'READY'
   | 'PICKING'
   | 'ADJUSTED'
   | 'ON_THE_WAY'

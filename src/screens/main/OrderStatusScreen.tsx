@@ -29,6 +29,8 @@ type NavType = NativeStackNavigationProp<RootStackParamList>;
 const STATUS_STEPS: { status: OrderStatus; label: string; icon: string }[] = [
   { status: 'PENDING', label: 'Pedido enviado', icon: 'checkmark-circle' },
   { status: 'ACCEPTED', label: 'Aceptado', icon: 'restaurant' },
+  { status: 'PREPARING', label: 'En preparación', icon: 'restaurant' },
+  { status: 'READY', label: 'Listo para recoger', icon: 'bag-check' },
   { status: 'PICKING', label: 'Surtiendo tu pedido', icon: 'basket' },
   { status: 'ADJUSTED', label: 'Pedido ajustado', icon: 'alert-circle' },
   { status: 'ON_THE_WAY', label: 'En camino', icon: 'navigate' },
@@ -160,7 +162,7 @@ export const OrderStatusScreen: React.FC = () => {
   }
 
   const isActive = !isRejected && !isCancelled && !isDelivered;
-  const showMap = order.delivery_type !== 'pickup' && isActive && (order.status === 'ACCEPTED' || order.status === 'ON_THE_WAY' || order.status === 'PICKING');
+  const showMap = order.delivery_type !== 'pickup' && isActive && (order.status === 'ACCEPTED' || order.status === 'PREPARING' || order.status === 'READY' || order.status === 'ON_THE_WAY' || order.status === 'PICKING');
 
   // Cancel Button Logic
   const canCancel = order.status === 'PENDING';

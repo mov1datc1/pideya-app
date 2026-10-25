@@ -32,10 +32,10 @@ export function DeliveryTrackingView({ order, driverLat, driverLng, driverUpdate
   const freshness = locationFreshness(updatedAt, now);
   const pickup = order.delivery_type === 'pickup';
   const onWay = order.status === 'ON_THE_WAY';
-  const hasMap = !pickup && ['ACCEPTED', 'PICKING', 'ADJUSTED', 'ON_THE_WAY'].includes(order.status);
+  const hasMap = !pickup && ['ACCEPTED', 'PREPARING', 'READY', 'PICKING', 'ADJUSTED', 'ON_THE_WAY'].includes(order.status);
   const restaurant = (order as Order & { restaurants?: { lat?: number; lng?: number; name?: string } }).restaurants;
   const step = order.status === 'DELIVERED' ? 3 : onWay ? 2 : order.status === 'PENDING' ? 0 : 1;
-  const steps = ['Confirmado', order.status === 'PICKING' ? 'Surtiendo' : 'Preparando', pickup ? 'Recogida' : 'En camino', 'Entregado'];
+  const steps = ['Confirmado', order.status === 'READY' ? 'Listo' : order.status === 'PICKING' ? 'Surtiendo' : 'Preparando', pickup ? 'Recogida' : 'En camino', 'Entregado'];
   const call = () => {
     if (order.delivery_driver_phone) void Linking.openURL(`tel:${order.delivery_driver_phone}`).catch(() => Alert.alert('No se pudo abrir el teléfono', 'Intenta llamar desde la aplicación de teléfono.'));
   };
@@ -71,7 +71,7 @@ export function DeliveryTrackingView({ order, driverLat, driverLng, driverUpdate
           </View>
           <View style={s.driverRow}>
             <View style={s.avatar}><Ionicons name={order.delivery_driver_id ? 'person-outline' : 'storefront-outline'} size={27} color={colors.agave} /></View>
-            <View style={s.driverText}><Text style={s.driverName}>{order.delivery_driver_name || (pickup ? 'Recoge tu pedido' : 'Tu negocio prepara el pedido')}</Text><Text style={s.secondary}>{order.delivery_driver_id ? 'Tu repartidor' : pickup ? 'En el establecimiento' : 'Aquí verás al repartidor asignado'}</Text></View>
+            <View style={s.driverText}><Text style={s.driverName}>{order.delivery_driver_name || (pickup ? 'Recoge tu pedido' : order.status === 'READY' ? 'Tu pedido está listo' : 'Tu negocio prepara el pedido')}</Text><Text style={s.secondary}>{order.delivery_driver_id ? 'Tu repartidor' : pickup ? 'En el establecimiento' : order.status === 'READY' ? 'Esperando asignación del repartidor' : 'Aquí verás al repartidor asignado'}</Text></View>
             {!!order.delivery_driver_phone && <TouchableOpacity accessibilityRole="button" accessibilityLabel="Llamar al repartidor" style={s.call} onPress={call}><Ionicons name="call" size={17} color={colors.agave} /><Text style={s.callText}>Llamar</Text></TouchableOpacity>}
           </View>
           <View style={s.destination}><Ionicons name="storefront-outline" size={22} color={colors.ink} /><Text style={s.business} numberOfLines={2}>{restaurant?.name || 'Tu negocio'}</Text><Ionicons name="arrow-forward" size={20} color={colors.ink} /><Ionicons name={pickup ? 'bag-handle-outline' : 'home-outline'} size={22} color={colors.ink} /><Text style={s.destinationText}>{pickup ? 'Recogida' : 'Tu destino'}</Text></View>

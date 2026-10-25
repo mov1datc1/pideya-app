@@ -334,3 +334,11 @@ test('incident reporting excludes sensitive payload and survives telemetry outag
   assert.equal(JSON.stringify(captured).includes('secret'),false);
   assert.equal('user_id' in captured.params,false);
 });
+
+test('preparing and ready orders remain active until a terminal status', () => {
+ const {ACTIVE_ORDER_STATUSES, ORDER_STATUS_LABELS}=load('utils/orderStatus.ts');
+ for(const status of ['PENDING','ACCEPTED','PREPARING','PICKING','ADJUSTED','READY','ON_THE_WAY']) assert.equal(ACTIVE_ORDER_STATUSES.includes(status),true,status);
+ for(const status of ['DELIVERED','REJECTED','CANCELLED']) assert.equal(ACTIVE_ORDER_STATUSES.includes(status),false,status);
+ assert.match(ORDER_STATUS_LABELS.READY,/Listo/);
+ assert.notEqual(ORDER_STATUS_LABELS.READY,ORDER_STATUS_LABELS.DELIVERED);
+});

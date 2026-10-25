@@ -28,6 +28,8 @@ type Tab = 'active' | 'history';
 const STATUS_COLORS: Record<string, string> = {
   PENDING: '#F59E0B',
   ACCEPTED: colors.agave,
+  PREPARING: colors.agave,
+  READY: colors.agave,
   PICKING: colors.agave,
   ADJUSTED: '#F59E0B',
   ON_THE_WAY: '#3B82F6',
