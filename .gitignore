@@ -43,3 +43,6 @@ yarn-error.*
 
 # Credentials (never commit)
 .credentials.md
+
+# Firebase CLI diagnostics may contain credentials
+firebase-debug*.log

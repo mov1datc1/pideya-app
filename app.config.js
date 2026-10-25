@@ -10,7 +10,7 @@ module.exports = {
   expo: {
     name: 'Pide ya',
     slug: 'pide-ya',
-    version: '1.3.2',
+    version: '1.3.3',
     jsEngine: 'hermes',
     orientation: 'portrait',
     icon: './assets/icon.png',
@@ -32,6 +32,7 @@ module.exports = {
         },
       ],
       'expo-web-browser',
+      ['expo-notifications', { defaultChannel: 'default' }],
     ],
     ios: {
       supportsTablet: false,
@@ -45,6 +46,7 @@ module.exports = {
       },
     },
     android: {
+      googleServicesFile: './google-services.json',
       adaptiveIcon: {
         backgroundColor: '#FFFFFF',
         foregroundImage: './assets/adaptive-icon.png',

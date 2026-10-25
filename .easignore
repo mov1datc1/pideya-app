@@ -46,3 +46,6 @@ yarn-error.*
 pideya-driver/
 rancho_eats_App.tsx
 rancho_eats_rebrand.patch
+
+# Local CLI diagnostics
+firebase-debug*.log
